@@ -22,6 +22,14 @@ import {
   getProactiveThreshold,
   type AgentSettings,
 } from "@/lib/agent-memory";
+import {
+  startShadowSession,
+  endShadowSession,
+  logToolCall,
+  logSpecialistDelegation,
+  logProactiveTrigger,
+  logAlertTriggered,
+} from "@/lib/shadow-logger";
 
 interface PointerData {
   x: number;
