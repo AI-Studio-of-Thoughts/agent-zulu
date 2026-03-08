@@ -195,34 +195,6 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
         data = fallbackResult;
       }
 
-        const { data: geminiData, error: geminiError } = await supabase.functions.invoke("vision-reasoning", {
-          body: {
-            frame_base64: base64,
-            context: this.context,
-            memory_context: memoryContext,
-            goals_context: goalsContext,
-            isizulu_immersion: true, // Always isiZulu in sovereign mode
-          },
-        });
-
-        if (geminiError) {
-          const msg = typeof geminiError === "object" && geminiError.message ? geminiError.message : String(geminiError);
-          if (msg.includes("429") || msg.includes("Rate limit")) {
-            this.backoffUntil = Date.now() + 30000;
-            return;
-          }
-          this.emit({ type: "error", error: msg });
-          return;
-        }
-
-        data = geminiData;
-
-        shadowLog("sovereign_fallback", {
-          reason: (sovereignErr as Error).message,
-          fallback_latency: Date.now() - startTime,
-        });
-      }
-
       if (!data) return;
 
       // Update avatar state
