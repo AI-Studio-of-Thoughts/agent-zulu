@@ -9,6 +9,7 @@ import VisionLoop from "./VisionLoop";
 import type { VisionLoopHandle } from "./VisionLoop";
 import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
+import { saveMemory } from "@/lib/agent-memory";
 
 interface PointerData {
   x: number;
@@ -61,6 +62,12 @@ const AgentInterface = () => {
           return "Frame frozen for inspection.";
         }
         return "No frame available to freeze.";
+      },
+      remember_object: async (params) => {
+        const name = String(params.name ?? "unknown");
+        const description = String(params.description ?? "");
+        saveMemory(name, description);
+        return `Remembered "${name}" for future sessions.`;
       },
     });
   }, [agent]);
@@ -234,7 +241,7 @@ const AgentInterface = () => {
               frozenFrame={frozenFrame}
               onDismissFrozen={dismissFrozen}
             />
-            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} />
+            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}

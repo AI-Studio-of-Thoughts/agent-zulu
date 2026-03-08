@@ -13,6 +13,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { formatMemoriesForPrompt } from "@/lib/agent-memory";
 import type {
   AgentBackendAdapter,
   AgentEventHandler,
@@ -115,8 +116,10 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
     try {
       const base64 = await this.blobToBase64(frame);
 
+      const memoryContext = formatMemoriesForPrompt();
+
       const { data, error } = await supabase.functions.invoke("vision-reasoning", {
-        body: { frame_base64: base64, context: this.context },
+        body: { frame_base64: base64, context: this.context, memory_context: memoryContext },
       });
 
       if (error) {
