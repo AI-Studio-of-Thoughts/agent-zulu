@@ -458,6 +458,11 @@ const AgentInterface = () => {
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 >
                   <div className="glass-surface rounded-lg px-4 py-2.5 border border-primary/30">
+                    {settings.sovereignBeta && (
+                      <span className="inline-block font-mono text-[8px] tracking-[0.2em] text-primary/80 bg-primary/10 rounded px-1.5 py-0.5 mb-1">
+                        SOVEREIGN β
+                      </span>
+                    )}
                     <p className="font-mono text-xs text-foreground/80 leading-relaxed">
                       {proactiveText}
                     </p>
