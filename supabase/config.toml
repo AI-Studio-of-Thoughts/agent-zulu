@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.vision-reasoning]
 verify_jwt = false
+
+[functions.specialist-delegation]
+verify_jwt = false
