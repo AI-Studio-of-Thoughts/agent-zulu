@@ -10,7 +10,7 @@ import AlertOverlay from "./AlertOverlay";
 import SettingsPanel from "./SettingsPanel";
 import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
-import { useAgentProtocol, HybridAdapter } from "@/protocol";
+import { useAgentProtocol, HybridAdapter, SovereignBetaAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveMemory,
@@ -40,7 +40,11 @@ interface PointerData {
 }
 
 const AgentInterface = () => {
-  const adapter = useMemo(() => new HybridAdapter(), []);
+  const [settings, setSettings] = useState<AgentSettings>(loadSettings);
+  const adapter = useMemo(
+    () => settings.sovereignBeta ? new SovereignBetaAdapter() : new HybridAdapter(),
+    [settings.sovereignBeta]
+  );
   const agent = useAgentProtocol(adapter);
 
   const [isConnecting, setIsConnecting] = useState(false);
@@ -69,7 +73,7 @@ const AgentInterface = () => {
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   // Settings
-  const [settings, setSettings] = useState<AgentSettings>(loadSettings);
+  // Settings — moved to top of component
   const proactiveThreshold = getProactiveThreshold(settings.proactivityLevel);
 
   // Proactive rate limiter

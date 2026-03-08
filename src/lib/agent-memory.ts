@@ -23,6 +23,7 @@ export interface AgentSettings {
   sovereignTraining: boolean;
   isiZuluImmersion: boolean;
   shadowComparison: boolean;
+  sovereignBeta: boolean;
 }
 
 const STORAGE_KEY = "agent-zulu-memory";
@@ -175,6 +176,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
   sovereignTraining: false,
   isiZuluImmersion: false,
   shadowComparison: false,
+  sovereignBeta: false,
 };
 
 export function loadSettings(): AgentSettings {
