@@ -102,7 +102,7 @@ serve(async (req) => {
   }
 
   try {
-    const { frame_base64, context, memory_context, goals_context } = await req.json();
+    const { frame_base64, context, memory_context, goals_context, target_language } = await req.json();
 
     if (!frame_base64) {
       return new Response(
@@ -111,7 +111,9 @@ serve(async (req) => {
       );
     }
 
-    const systemContent = SOVEREIGN_SYSTEM_PROMPT + (memory_context || "") + (goals_context || "");
+    // Pan-African language adaptation
+    const langAdaptation = getPanAfricanPrompt(target_language || "isizulu");
+    const systemContent = SOVEREIGN_SYSTEM_PROMPT + langAdaptation + (memory_context || "") + (goals_context || "");
 
     const messages: any[] = [
       { role: "system", content: systemContent },
