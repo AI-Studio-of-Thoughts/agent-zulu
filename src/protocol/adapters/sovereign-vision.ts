@@ -52,6 +52,7 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
   // Latency guard: track recent sovereign latencies
   private recentLatencies: number[] = [];
   private _sovereignDisabledForSession = false;
+  private _onDeviceInitialized = false;
 
   constructor() {
     this._vision = {
