@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Activity, Globe, Zap, Brain, Cpu, Users, Heart } from "lucide-react";
+import { ArrowLeft, Activity, Globe, Zap, Brain, Cpu, Users, Heart, Sparkles, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -67,6 +67,7 @@ const Analytics = () => {
     const feedbackLogs = logs.filter((l) => l.event_type === "user_feedback");
     const toggleLogs = logs.filter((l) => l.event_type === "sovereign_toggle");
     const latencyGuardLogs = logs.filter((l) => l.event_type === "sovereign_latency_guard");
+    const reflectionLogs = logs.filter((l) => l.event_type === "reflection_triggered");
 
     // Latency data
     const sovereignLatencies = sovereignLogs
@@ -111,6 +112,18 @@ const Analytics = () => {
     const thumbsUp = feedbackLogs.filter((l) => l.payload?.rating === "up").length;
     const thumbsDown = feedbackLogs.filter((l) => l.payload?.rating === "down").length;
 
+    // Reflection moments — last 10
+    const reflectionMoments = reflectionLogs.slice(0, 10).map((l) => ({
+      id: l.id,
+      proverb: l.payload?.proverb || "—",
+      has_poem: !!l.payload?.has_poem,
+      has_community: !!l.payload?.has_community,
+      has_prediction: !!l.payload?.has_prediction,
+      prediction_confidence: l.payload?.prediction_confidence || 0,
+      overlay_count: l.payload?.overlay_count || 0,
+      created_at: l.created_at,
+    }));
+
     return {
       total: logs.length,
       sovereign: sovereignLogs.length,
@@ -120,6 +133,7 @@ const Analytics = () => {
       gestures: gestureLogs.length,
       toggles: toggleLogs.length,
       latencyGuards: latencyGuardLogs.length,
+      reflections: reflectionLogs.length,
       avgSovereignLatency,
       sourceData,
       eventData,
@@ -128,6 +142,7 @@ const Analytics = () => {
       withSovereigntySignal,
       thumbsUp,
       thumbsDown,
+      reflectionMoments,
     };
   }, [logs]);
 
@@ -309,6 +324,69 @@ const Analytics = () => {
                 </div>
               </ChartCard>
             </div>
+
+            {/* Reflection Moments Timeline */}
+            {stats.reflectionMoments.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <div>
+                    <h2 className="font-display text-sm tracking-[0.15em] text-foreground">
+                      REFLECTION MOMENTS
+                    </h2>
+                    <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">
+                      Last {stats.reflectionMoments.length} reflections • {stats.reflections} total
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {stats.reflectionMoments.map((m, i) => (
+                    <motion.div
+                      key={m.id}
+                      className="glass-surface rounded-lg p-4 border border-border/30"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <BookOpen className="w-3 h-3 text-primary flex-shrink-0" />
+                            <p className="font-mono text-[11px] text-primary leading-relaxed truncate">
+                              {m.proverb}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {m.has_poem && (
+                              <span className="font-mono text-[7px] tracking-wider text-accent bg-accent/10 rounded-full px-2 py-0.5">
+                                POEM
+                              </span>
+                            )}
+                            {m.has_community && (
+                              <span className="font-mono text-[7px] tracking-wider text-primary/70 bg-primary/10 rounded-full px-2 py-0.5">
+                                UBUNTU
+                              </span>
+                            )}
+                            {m.has_prediction && (
+                              <span className="font-mono text-[7px] tracking-wider text-foreground/60 bg-muted/30 rounded-full px-2 py-0.5">
+                                PREDICTED {Math.round(m.prediction_confidence * 100)}%
+                              </span>
+                            )}
+                            <span className="font-mono text-[7px] tracking-wider text-muted-foreground">
+                              {m.overlay_count} overlays
+                            </span>
+                          </div>
+                        </div>
+                        <span className="font-mono text-[8px] text-muted-foreground/50 flex-shrink-0">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

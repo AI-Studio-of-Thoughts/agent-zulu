@@ -118,6 +118,16 @@ export interface ReflectionEvent {
   community_echo?: string;
   /** Source identifier */
   source?: string;
+  /** Generative isiZulu poem/praise line from the session */
+  generated_poem_isizulu?: string;
+  /** Optional image generation prompt for AR visual */
+  generated_image_prompt?: string;
+  /** Predicted next goal */
+  predicted_next_goal?: string;
+  /** Prediction confidence 0-1 */
+  prediction_confidence?: number;
+  /** isiZulu suggestion for predicted goal */
+  isizulu_suggestion?: string;
 }
 
 export type AgentEvent =

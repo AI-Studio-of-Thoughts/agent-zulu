@@ -10,6 +10,7 @@ import VisionLoop from "./VisionLoop";
 import AlertOverlay from "./AlertOverlay";
 import SettingsPanel from "./SettingsPanel";
 import ReflectionOverlay from "./ReflectionOverlay";
+import ThinkingBubble from "./ThinkingBubble";
 import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
 import type { ReflectionEvent } from "@/protocol/types";
@@ -77,6 +78,7 @@ const AgentInterface = () => {
   const [activeAlert, setActiveAlert] = useState<AlertData | null>(null);
   const [goalReminder, setGoalReminder] = useState<string | null>(null);
   const [activeReflection, setActiveReflection] = useState<ReflectionEvent | null>(null);
+  const [isReflecting, setIsReflecting] = useState(false);
   const alertTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
   const reflectionTimerRef = useRef<ReturnType<typeof setInterval>>();
@@ -294,8 +296,10 @@ const AgentInterface = () => {
 
   // Autonomous reflection trigger — every 2.5 min of idle when reflection mode on
   const triggerReflection = useCallback(async () => {
-    if (activeReflection) return; // Don't overlap
+    if (activeReflection || isReflecting) return; // Don't overlap
     if (transcriptsRef.current.length === 0 && visionDescriptionsRef.current.length === 0) return;
+
+    setIsReflecting(true);
 
     try {
       const goals = loadGoals().filter((g) => g.active);
@@ -314,6 +318,8 @@ const AgentInterface = () => {
         },
       });
 
+      setIsReflecting(false);
+
       if (error) {
         console.error("[Reflection] Error:", error.message);
         return;
@@ -328,21 +334,39 @@ const AgentInterface = () => {
           overlays: data.overlays || [],
           community_echo: data.community_echo,
           source: data.source || "sovereign-reflection",
+          generated_poem_isizulu: data.generated_poem_isizulu,
+          generated_image_prompt: data.generated_image_prompt,
+          predicted_next_goal: data.predicted_next_goal,
+          prediction_confidence: data.prediction_confidence,
+          isizulu_suggestion: data.isizulu_suggestion,
         };
         setActiveReflection(reflection);
+
+        // Show predictive proactive bubble if high confidence
+        if (data.isizulu_suggestion && (data.prediction_confidence ?? 0) > 0.7) {
+          setTimeout(() => {
+            setProactiveText(data.isizulu_suggestion);
+            setTimeout(() => setProactiveText(null), 8000);
+          }, 3000);
+        }
+
         shadowLog("reflection_triggered", {
           proverb: reflection.proverb,
           overlay_count: reflection.overlays.length,
           has_community: !!reflection.community_echo,
+          has_poem: !!reflection.generated_poem_isizulu,
+          has_prediction: !!reflection.predicted_next_goal,
+          prediction_confidence: reflection.prediction_confidence,
           sovereign_beta: settings.sovereignBeta,
         });
-        // Auto-dismiss after 20s
-        setTimeout(() => setActiveReflection(null), 20000);
+        // Auto-dismiss after 25s (longer for richer content)
+        setTimeout(() => setActiveReflection(null), 25000);
       }
     } catch (err) {
+      setIsReflecting(false);
       console.error("[Reflection] Failed:", err);
     }
-  }, [activeReflection, settings]);
+  }, [activeReflection, isReflecting, settings]);
 
   // Idle reflection timer
   useEffect(() => {
@@ -588,10 +612,12 @@ const AgentInterface = () => {
                 isListening={isListening}
                 isSpeaking={isSpeaking}
                 isConnected={isConnected}
-                emotion={agent.avatarState.emotion}
-                intensity={agent.avatarState.intensity}
+                emotion={isReflecting ? "thinking" : agent.avatarState.emotion}
+                intensity={isReflecting ? 0.9 : agent.avatarState.intensity}
                 localMode={localMode}
               />
+              {/* Thinking bubble during reflection */}
+              <ThinkingBubble visible={isReflecting} />
             </div>
 
             {/* Proactive suggestion bubble with feedback */}
