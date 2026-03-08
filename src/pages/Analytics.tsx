@@ -35,21 +35,26 @@ const Analytics = () => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<SessionLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      const { data, error } = await supabase
-        .from("session_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
+    const fetchAll = async () => {
+      const [logsResult, community] = await Promise.all([
+        supabase
+          .from("session_logs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(500),
+        fetchCommunityStats(),
+      ]);
 
-      if (!error && data) {
-        setLogs(data as SessionLog[]);
+      if (!logsResult.error && logsResult.data) {
+        setLogs(logsResult.data as SessionLog[]);
       }
+      setCommunityStats(community);
       setLoading(false);
     };
-    fetchLogs();
+    fetchAll();
   }, []);
 
   // Computed analytics
