@@ -296,6 +296,30 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   </div>
                 )}
 
+                {/* Reflection Mode */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">Reflection Mode</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Autonomous cultural reflections
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={settings.reflectionMode}
+                    onToggle={() => update({ reflectionMode: !settings.reflectionMode })}
+                  />
+                </div>
+
+                {settings.reflectionMode && (
+                  <div className="pl-6 font-mono text-[9px] text-primary/60 border-l border-primary/20 ml-2">
+                    ✨ The Second Intelligence reflects — synthesizing proverbs,
+                    cultural insights, and community wisdom every 2.5 min idle or on open-palm gesture.
+                  </div>
+                )}
+
                 {/* Analytics link */}
                 <AnalyticsLink />
 
