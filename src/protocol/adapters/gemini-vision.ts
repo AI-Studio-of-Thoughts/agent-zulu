@@ -1,5 +1,5 @@
 /**
- * Gemini Vision Reasoning Adapter
+ * Gemini Vision Reasoning Adapter (with goals context)
  *
  * Vision-only adapter that sends camera frames to Gemini 2.5 Flash
  * via the vision-reasoning edge function. Does NOT handle voice —
