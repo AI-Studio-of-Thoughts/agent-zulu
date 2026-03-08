@@ -221,6 +221,11 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
         }
       }
 
+      // Gesture detection
+      if (data.gesture_detected && data.gesture_detected.confidence > 0.3) {
+        this.emit({ type: "gesture", gesture: data.gesture_detected });
+      }
+
       // Proactive suggestion
       if (data.proactive_suggestion) {
         const { text, confidence } = data.proactive_suggestion;

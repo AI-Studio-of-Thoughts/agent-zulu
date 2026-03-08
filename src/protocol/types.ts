@@ -81,12 +81,22 @@ export interface TranscriptEntry {
 
 // ── Events (Backend → Frontend) ─────────────────────────────
 
+export interface GestureDetected {
+  type: "hand_offer" | "point" | "wave" | "hold_up" | "open_palm";
+  x: number;
+  y: number;
+  label_zu: string;
+  label_en?: string;
+  confidence: number;
+}
+
 export type AgentEvent =
   | { type: "voice_state"; state: VoiceState }
   | { type: "avatar_state"; state: AvatarState }
   | { type: "transcript"; entry: TranscriptEntry }
   | { type: "tool_call"; call: ToolCall }
   | { type: "proactive"; text: string; confidence: number }
+  | { type: "gesture"; gesture: GestureDetected }
   | { type: "error"; error: string }
   | { type: "status"; status: ConnectionStatus };
 

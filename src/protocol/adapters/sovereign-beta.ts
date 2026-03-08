@@ -104,6 +104,7 @@ export class SovereignBetaAdapter implements AgentBackendAdapter {
           break;
         case "transcript":
         case "tool_call":
+        case "gesture":
           this.emit(event);
           break;
         case "proactive":
