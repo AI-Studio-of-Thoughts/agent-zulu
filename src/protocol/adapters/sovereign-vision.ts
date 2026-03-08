@@ -48,6 +48,10 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
   // Timeout for sovereign endpoint before fallback
   private sovereignTimeoutMs = 10000;
 
+  // Latency guard: track recent sovereign latencies
+  private recentLatencies: number[] = [];
+  private _sovereignDisabledForSession = false;
+
   constructor() {
     this._vision = {
       supportsVision: true,
