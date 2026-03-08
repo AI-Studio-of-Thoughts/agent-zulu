@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Power, ThumbsUp, ThumbsDown } from "lucide-react";
+import { toast } from "sonner";
 import AvatarDisplay from "./AvatarDisplay";
 import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
@@ -335,7 +336,9 @@ const AgentInterface = () => {
       setShowStartScreen(false);
     } catch (err) {
       console.error("Failed to start session:", err);
-    } finally {
+      toast.error("Connection failed", {
+        description: err instanceof Error ? err.message : "Could not connect to Agent Zulu. Please try again.",
+      });
       setIsConnecting(false);
     }
   }, [agent]);
