@@ -404,7 +404,7 @@ const AgentInterface = () => {
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
             />
-            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} />
+            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} onLocalModeChange={setLocalMode} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}
