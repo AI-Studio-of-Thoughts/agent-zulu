@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe } from "lucide-react";
+import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe, BarChart3 } from "lucide-react";
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   loadSettings,
   saveSettings,
