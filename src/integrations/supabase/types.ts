@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      community_logs: {
+        Row: {
+          created_at: string
+          device_hash: string | null
+          event_type: string
+          id: string
+          language: string | null
+          payload: Json | null
+          region: string | null
+          session_hash: string
+        }
+        Insert: {
+          created_at?: string
+          device_hash?: string | null
+          event_type: string
+          id?: string
+          language?: string | null
+          payload?: Json | null
+          region?: string | null
+          session_hash: string
+        }
+        Update: {
+          created_at?: string
+          device_hash?: string | null
+          event_type?: string
+          id?: string
+          language?: string | null
+          payload?: Json | null
+          region?: string | null
+          session_hash?: string
+        }
+        Relationships: []
+      }
       session_logs: {
         Row: {
           created_at: string
