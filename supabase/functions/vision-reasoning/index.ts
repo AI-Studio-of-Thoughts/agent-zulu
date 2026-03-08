@@ -55,8 +55,11 @@ serve(async (req) => {
       );
     }
 
+    // Build system prompt with optional memory context
+    const systemContent = SYSTEM_PROMPT + (memory_context || "");
+
     const messages: any[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemContent },
     ];
 
     if (context && Array.isArray(context)) {
