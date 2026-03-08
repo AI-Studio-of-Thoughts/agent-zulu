@@ -14,7 +14,7 @@ interface VisionLoopProps {
   fps?: number;
 }
 
-const VisionLoop = ({ mediaStream, vision, fps = 4 }: VisionLoopProps) => {
+const VisionLoop = ({ mediaStream, vision, fps = 0.25 }: VisionLoopProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 

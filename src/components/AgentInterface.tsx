@@ -6,11 +6,11 @@ import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
 import ConnectionStatus from "./ConnectionStatus";
 import VisionLoop from "./VisionLoop";
-import { useAgentProtocol, ElevenLabsAdapter } from "@/protocol";
+import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
 
 const AgentInterface = () => {
-  const adapter = useMemo(() => new ElevenLabsAdapter(), []);
+  const adapter = useMemo(() => new HybridAdapter(), []);
   const agent = useAgentProtocol(adapter);
 
   const [isConnecting, setIsConnecting] = useState(false);

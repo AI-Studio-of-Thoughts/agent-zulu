@@ -21,3 +21,5 @@ export type {
 
 export { useAgentProtocol } from "./useAgentProtocol";
 export { ElevenLabsAdapter } from "./adapters/elevenlabs";
+export { GeminiVisionAdapter } from "./adapters/gemini-vision";
+export { HybridAdapter } from "./adapters/hybrid";
