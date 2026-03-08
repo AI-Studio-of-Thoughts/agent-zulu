@@ -311,6 +311,114 @@ const Analytics = () => {
             </div>
           </>
         )}
+
+        {/* Community Data Flywheel Section */}
+        {communityStats && (
+          <div className="space-y-6 pt-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="border-t border-border/30 pt-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <Users className="w-5 h-5 text-primary" />
+                <div>
+                  <h2 className="font-display text-sm tracking-[0.15em] text-foreground">
+                    UBUNTU DATA FLYWHEEL
+                  </h2>
+                  <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">
+                    Umuntu ngumuntu ngabantu — Collective sovereign intelligence
+                  </p>
+                </div>
+              </div>
+
+              {/* Community KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <StatCard icon={Heart} label="Contributions" value={communityStats.totalContributions} accent />
+                <StatCard icon={Users} label="Unique Devices" value={communityStats.uniqueDevices} />
+                <StatCard icon={Activity} label="Sessions" value={communityStats.uniqueSessions} />
+                <StatCard icon={Zap} label="Last 24h" value={communityStats.recentActivity} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Language Distribution */}
+                <ChartCard title="Language Distribution" subtitle="Community language diversity">
+                  {communityStats.languageDistribution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={communityStats.languageDistribution}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={70}
+                          innerRadius={35}
+                          dataKey="value"
+                          label={({ name, percent }) =>
+                            `${name} ${(percent * 100).toFixed(0)}%`
+                          }
+                          labelLine={false}
+                        >
+                          {communityStats.languageDistribution.map((_, i) => (
+                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <NoData />
+                  )}
+                </ChartCard>
+
+                {/* Community Event Types */}
+                <ChartCard title="Community Events" subtitle="What the collective is sharing">
+                  {communityStats.topEventTypes.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={communityStats.topEventTypes} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(185 20% 20%)" />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(185 20% 50%)" }} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={130}
+                          tick={{ fontSize: 9, fill: "hsl(185 20% 50%)" }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "hsl(220 20% 10%)",
+                            border: "1px solid hsl(185 40% 30%)",
+                            borderRadius: 8,
+                            fontSize: 11,
+                          }}
+                        />
+                        <Bar dataKey="value" fill="hsl(280, 80%, 60%)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <NoData />
+                  )}
+                </ChartCard>
+              </div>
+
+              {/* Region map */}
+              {communityStats.regionDistribution.length > 0 && (
+                <ChartCard title="Regional Distribution" subtitle="Where the community shares from">
+                  <div className="flex flex-wrap gap-3 py-4">
+                    {communityStats.regionDistribution.map((r, i) => (
+                      <div
+                        key={r.name}
+                        className="glass-surface rounded-lg px-3 py-2 border border-border/30"
+                      >
+                        <div className="font-mono text-[10px] text-muted-foreground">{r.name}</div>
+                        <div className="font-display text-lg text-primary">{r.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </ChartCard>
+              )}
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   );
