@@ -206,7 +206,7 @@ function getCategory(label: string): string {
         intensity: cultural.intensity,
         notes_zu: cultural.isaga || "",
         source: "on-device",
-        labels: allResults.map((r: any) => ({ label: r.label, score: r.score })),
+        labels: resultArray.map((r: any) => ({ label: r.label, score: r.score })),
       };
     } catch (err) {
       console.error("[OnDevice] Classification error:", err);
