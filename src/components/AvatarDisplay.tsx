@@ -116,6 +116,8 @@ const AvatarDisplay = ({
           <span className="text-primary text-glow">Speaking</span>
         ) : isListening ? (
           <span className="text-primary/70">Listening…</span>
+        ) : localMode ? (
+          <span className="text-accent/80">Local mode</span>
         ) : emotion === "thinking" ? (
           <span className="text-accent">Thinking…</span>
         ) : isConnected ? (
