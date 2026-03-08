@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Activity, Globe, Zap, Brain, Cpu, Users, Heart } from "lucide-react";
+import { ArrowLeft, Activity, Globe, Zap, Brain, Cpu, Users, Heart, Sparkles, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
