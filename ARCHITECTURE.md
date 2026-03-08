@@ -69,7 +69,7 @@ Converts adapter events into React state. Components use this hook exclusively.
 
 ---
 
-## Edge Function
+## Edge Functions
 
 ### `elevenlabs-conversation-token`
 
@@ -77,6 +77,14 @@ Converts adapter events into React state. Components use this hook exclusively.
 - Fetches signed WebSocket URL from ElevenLabs API
 - Agent ID: `agent_2501kk6wt2eneyysjqpsh1jyff15`
 - Returns `{ signed_url }` to frontend
+
+### `vision-reasoning`
+
+- Reads `LOVABLE_API_KEY` from secrets
+- Accepts `{ frame_base64, context }` POST body
+- Sends image + conversation context to Gemini 2.5 Flash via Lovable AI gateway
+- Uses structured output (tool calling) to return `{ description, emotion, intensity, tool_calls }`
+- Handles rate limits (429) and credit exhaustion (402)
 
 ---
 
