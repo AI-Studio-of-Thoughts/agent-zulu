@@ -44,7 +44,8 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
   private context: Array<{ role: string; content: string }> = [];
 
   // Throttle: min interval between frame sends (ms)
-  private minFrameInterval = 4000;
+  private minFrameInterval = 6000;
+  private backoffUntil = 0;
   private lastFrameTime = 0;
   private processing = false;
 
@@ -109,6 +110,7 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
     if (now - this.lastFrameTime < this.minFrameInterval) return;
     if (this.processing) return;
     if (this._status !== "connected") return;
+    if (now < this.backoffUntil) return; // rate-limit backoff
 
     this.lastFrameTime = now;
     this.processing = true;
@@ -131,8 +133,15 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
       });
 
       if (error) {
+        const msg = typeof error === "object" && error.message ? error.message : String(error);
+        // Silently back off on rate limits — don't surface as error
+        if (msg.includes("429") || msg.includes("Rate limit")) {
+          console.warn("[GeminiVision] Rate limited — backing off 30s");
+          this.backoffUntil = Date.now() + 30000;
+          return;
+        }
         console.error("[GeminiVision] Edge function error:", error);
-        this.emit({ type: "error", error: error.message || "Vision reasoning failed" });
+        this.emit({ type: "error", error: msg || "Vision reasoning failed" });
         return;
       }
 
