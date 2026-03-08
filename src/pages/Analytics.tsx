@@ -324,6 +324,69 @@ const Analytics = () => {
                 </div>
               </ChartCard>
             </div>
+
+            {/* Reflection Moments Timeline */}
+            {stats.reflectionMoments.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <div>
+                    <h2 className="font-display text-sm tracking-[0.15em] text-foreground">
+                      REFLECTION MOMENTS
+                    </h2>
+                    <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground uppercase">
+                      Last {stats.reflectionMoments.length} reflections • {stats.reflections} total
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {stats.reflectionMoments.map((m, i) => (
+                    <motion.div
+                      key={m.id}
+                      className="glass-surface rounded-lg p-4 border border-border/30"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <BookOpen className="w-3 h-3 text-primary flex-shrink-0" />
+                            <p className="font-mono text-[11px] text-primary leading-relaxed truncate">
+                              {m.proverb}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {m.has_poem && (
+                              <span className="font-mono text-[7px] tracking-wider text-accent bg-accent/10 rounded-full px-2 py-0.5">
+                                POEM
+                              </span>
+                            )}
+                            {m.has_community && (
+                              <span className="font-mono text-[7px] tracking-wider text-primary/70 bg-primary/10 rounded-full px-2 py-0.5">
+                                UBUNTU
+                              </span>
+                            )}
+                            {m.has_prediction && (
+                              <span className="font-mono text-[7px] tracking-wider text-foreground/60 bg-muted/30 rounded-full px-2 py-0.5">
+                                PREDICTED {Math.round(m.prediction_confidence * 100)}%
+                              </span>
+                            )}
+                            <span className="font-mono text-[7px] tracking-wider text-muted-foreground">
+                              {m.overlay_count} overlays
+                            </span>
+                          </div>
+                        </div>
+                        <span className="font-mono text-[8px] text-muted-foreground/50 flex-shrink-0">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
