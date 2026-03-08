@@ -246,7 +246,7 @@ const AgentInterface = () => {
     });
   }, [agent, settings.memoryEnabled, settings.isiZuluImmersion]);
 
-  // Listen for proactive + gesture events from the adapter
+  // Listen for proactive + gesture + transcript events from the adapter
   useEffect(() => {
     const unsub = adapter.on((event) => {
       if (
@@ -265,10 +265,98 @@ const AgentInterface = () => {
         setActiveGesture(event.gesture as any);
         clearTimeout(gestureTimerRef.current);
         gestureTimerRef.current = setTimeout(() => setActiveGesture(null), 5000);
+        // Collect for reflection context
+        gesturesRef.current.push({
+          type: event.gesture.type,
+          x: event.gesture.x,
+          y: event.gesture.y,
+          label_zu: event.gesture.label_zu,
+          label_en: event.gesture.label_en,
+        });
+        if (gesturesRef.current.length > 10) gesturesRef.current.shift();
+        // Trigger reflection on open_palm hold gesture
+        if (event.gesture.type === "open_palm" && settings.reflectionMode) {
+          triggerReflection();
+        }
+      }
+      if (event.type === "transcript") {
+        transcriptsRef.current.push({ role: event.entry.role, text: event.entry.text });
+        if (transcriptsRef.current.length > 20) transcriptsRef.current.shift();
+        // Collect vision descriptions from agent transcripts
+        if (event.entry.role === "agent") {
+          visionDescriptionsRef.current.push(event.entry.text);
+          if (visionDescriptionsRef.current.length > 10) visionDescriptionsRef.current.shift();
+        }
       }
     });
     return unsub;
-  }, [adapter, isSpeaking, proactiveThreshold]);
+  }, [adapter, isSpeaking, proactiveThreshold, settings.reflectionMode]);
+
+  // Autonomous reflection trigger — every 2.5 min of idle when reflection mode on
+  const triggerReflection = useCallback(async () => {
+    if (activeReflection) return; // Don't overlap
+    if (transcriptsRef.current.length === 0 && visionDescriptionsRef.current.length === 0) return;
+
+    try {
+      const goals = loadGoals().filter((g) => g.active);
+      const memories = searchMemories("").slice(-5);
+      const lang = settings.panAfricanMode ? settings.panAfricanLanguage : (settings.isiZuluImmersion ? "isizulu" : "isizulu");
+
+      const { data, error } = await supabase.functions.invoke("sovereign-reflection", {
+        body: {
+          transcripts: transcriptsRef.current.slice(-10),
+          vision_descriptions: visionDescriptionsRef.current.slice(-5),
+          gestures: gesturesRef.current.slice(-5),
+          goals: goals.map((g) => ({ name: g.name, description: g.description, milestones: g.milestones, completedMilestones: g.completedMilestones })),
+          memories: memories.map((m) => ({ name: m.name, description: m.description })),
+          target_language: lang,
+          community_query: settings.ubuntuDataSharing ? true : null,
+        },
+      });
+
+      if (error) {
+        console.error("[Reflection] Error:", error.message);
+        return;
+      }
+
+      if (data) {
+        const reflection: ReflectionEvent = {
+          summary: data.summary || "",
+          summary_en: data.summary_en,
+          proverb: data.proverb || "Umuntu ngumuntu ngabantu.",
+          goal_update: data.goal_update,
+          overlays: data.overlays || [],
+          community_echo: data.community_echo,
+          source: data.source || "sovereign-reflection",
+        };
+        setActiveReflection(reflection);
+        shadowLog("reflection_triggered", {
+          proverb: reflection.proverb,
+          overlay_count: reflection.overlays.length,
+          has_community: !!reflection.community_echo,
+          sovereign_beta: settings.sovereignBeta,
+        });
+        // Auto-dismiss after 20s
+        setTimeout(() => setActiveReflection(null), 20000);
+      }
+    } catch (err) {
+      console.error("[Reflection] Failed:", err);
+    }
+  }, [activeReflection, settings]);
+
+  // Idle reflection timer
+  useEffect(() => {
+    if (isConnected && settings.reflectionMode && !isSpeaking) {
+      reflectionTimerRef.current = setInterval(() => {
+        if (!isSpeaking && !isListening) {
+          triggerReflection();
+        }
+      }, 150_000); // 2.5 minutes
+      return () => clearInterval(reflectionTimerRef.current);
+    } else {
+      clearInterval(reflectionTimerRef.current);
+    }
+  }, [isConnected, settings.reflectionMode, isSpeaking, isListening, triggerReflection]);
 
   // Offline goal reminders — cycle through active goals when in local mode
   useEffect(() => {
