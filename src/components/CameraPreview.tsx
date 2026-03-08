@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { VideoOff } from "lucide-react";
 import ToolOverlay from "./ToolOverlay";
+import GestureOverlay, { type GestureData } from "./GestureOverlay";
 
 interface PointerData {
   x: number;
@@ -16,6 +17,7 @@ interface CameraPreviewProps {
   frozenFrame?: string | null;
   onDismissFrozen?: () => void;
   zoomLevel?: number;
+  gesture?: GestureData | null;
 }
 
 const CameraPreview = ({
@@ -25,6 +27,7 @@ const CameraPreview = ({
   frozenFrame = null,
   onDismissFrozen,
   zoomLevel = 1,
+  gesture = null,
 }: CameraPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -67,6 +70,9 @@ const CameraPreview = ({
         frozenFrame={frozenFrame}
         onDismissFrozen={onDismissFrozen}
       />
+
+      {/* AR gesture overlay */}
+      <GestureOverlay gesture={gesture} />
 
       {/* Zoom indicator */}
       {zoomLevel > 1 && (

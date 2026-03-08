@@ -544,6 +544,7 @@ const AgentInterface = () => {
               frozenFrame={frozenFrame}
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
+              gesture={activeGesture}
             />
             <VisionLoop
               ref={visionLoopRef}
