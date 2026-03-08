@@ -67,6 +67,7 @@ const Analytics = () => {
     const feedbackLogs = logs.filter((l) => l.event_type === "user_feedback");
     const toggleLogs = logs.filter((l) => l.event_type === "sovereign_toggle");
     const latencyGuardLogs = logs.filter((l) => l.event_type === "sovereign_latency_guard");
+    const reflectionLogs = logs.filter((l) => l.event_type === "reflection_triggered");
 
     // Latency data
     const sovereignLatencies = sovereignLogs
@@ -111,6 +112,18 @@ const Analytics = () => {
     const thumbsUp = feedbackLogs.filter((l) => l.payload?.rating === "up").length;
     const thumbsDown = feedbackLogs.filter((l) => l.payload?.rating === "down").length;
 
+    // Reflection moments — last 10
+    const reflectionMoments = reflectionLogs.slice(0, 10).map((l) => ({
+      id: l.id,
+      proverb: l.payload?.proverb || "—",
+      has_poem: !!l.payload?.has_poem,
+      has_community: !!l.payload?.has_community,
+      has_prediction: !!l.payload?.has_prediction,
+      prediction_confidence: l.payload?.prediction_confidence || 0,
+      overlay_count: l.payload?.overlay_count || 0,
+      created_at: l.created_at,
+    }));
+
     return {
       total: logs.length,
       sovereign: sovereignLogs.length,
@@ -120,6 +133,7 @@ const Analytics = () => {
       gestures: gestureLogs.length,
       toggles: toggleLogs.length,
       latencyGuards: latencyGuardLogs.length,
+      reflections: reflectionLogs.length,
       avgSovereignLatency,
       sourceData,
       eventData,
@@ -128,6 +142,7 @@ const Analytics = () => {
       withSovereigntySignal,
       thumbsUp,
       thumbsDown,
+      reflectionMoments,
     };
   }, [logs]);
 
