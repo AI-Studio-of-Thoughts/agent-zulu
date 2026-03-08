@@ -22,6 +22,7 @@ export interface AgentSettings {
   proactivityLevel: "off" | "low" | "medium" | "high";
   sovereignTraining: boolean;
   isiZuluImmersion: boolean;
+  shadowComparison: boolean;
 }
 
 const STORAGE_KEY = "agent-zulu-memory";
