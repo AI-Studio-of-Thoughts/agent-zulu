@@ -29,6 +29,7 @@ export interface AgentSettings {
   panAfricanMode: boolean;
   panAfricanLanguage: AfricanLanguage;
   ubuntuDataSharing: boolean;
+  reflectionMode: boolean;
 }
 
 const STORAGE_KEY = "agent-zulu-memory";
