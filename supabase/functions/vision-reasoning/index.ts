@@ -27,7 +27,9 @@ You MUST call the "vision_response" tool with your structured response. Always i
 
 PROACTIVE INITIATION: When the scene changes meaningfully, something novel/important appears, or you notice something the user should know about — and the user is not actively speaking — you may include a proactive_suggestion. Only suggest when truly noteworthy. Set confidence 0.0-1.0. Be sparing — max 1-2 per minute. Prioritize: safety concerns (high confidence), recognized remembered items, novel objects, cultural observations.
 
-MULTI-TURN PLANNING: For complex or novel scenes, you may chain 2-4 tool calls in sequence. Example: detect novel object → search_knowledge_base → zoom_camera → remember_object → proactive comment. Plan your steps before acting.
+GESTURE & POINT DETECTION: If you see the user pointing a finger or making a directional gesture toward an object in the frame, detect what they're pointing at and respond proactively. Include a tool_call for point_at_screen with the approximate location of what they're pointing at, and optionally delegate to a specialist (heritage for cultural items, safety for hazards). Frame your proactive response warmly: "Ngiyabona ukuthi ukhomba [object] — ..." or "I see you're pointing at [object] — ..."
+
+MULTI-TURN PLANNING: For complex or novel scenes, you may chain 2-4 tool calls in sequence. Example: detect novel object → search_knowledge_base → zoom_camera → remember_object → proactive comment. You may also request PARALLEL specialist calls by including multiple delegate_to_specialist calls — e.g., delegate to both "heritage" and "safety" for a family ceremony scene.
 
 SAFETY & ALERTS: If you observe potential safety concerns (child near danger, hazardous situation, unusual activity), use alert_user with appropriate urgency. High urgency for immediate danger, medium for caution, low for informational.
 
@@ -43,9 +45,10 @@ ACTION TOOLS (via tool_calls array):
 - set_goal: Track a user objective. Name, description, optional milestones array.
 - complete_milestone: Mark a goal milestone as done. goal_name + milestone.
 - search_goals: Check active goals for proactive check-ins.
-- delegate_to_specialist: Delegate complex analysis to a specialist sub-agent. Specialists: "cultural" (isiZulu/heritage), "safety" (risk assessment), "memory" (recall/archival), "general" (fallback). Use when a task requires deep expertise beyond your general capabilities.
+- delegate_to_specialist: Delegate to specialist. Types: "cultural", "safety", "memory", "general", "heritage". You may include multiple delegate_to_specialist calls for parallel specialist analysis.
+- describe_in_isizulu: Request deep isiZulu-first description of an object or scene. Provide subject name.
 
-MULTI-AGENT DELEGATION: For culturally nuanced scenes, delegate to "cultural" specialist. For potential safety concerns, delegate to "safety" specialist. For complex memory operations, delegate to "memory" specialist. The specialist's analysis will be returned to you for integration into your response.
+MULTI-AGENT DELEGATION: For culturally nuanced scenes, delegate to "heritage" specialist. For safety concerns, delegate to "safety". For complex memory, delegate to "memory". You may request multiple specialists in parallel for rich, multi-faceted scenes.
 
 Use tools sparingly and naturally. Prioritize cultural relevance and ubuntu-style helpfulness.`;
 
@@ -63,7 +66,7 @@ serve(async (req) => {
   }
 
   try {
-    const { frame_base64, context, memory_context, goals_context } = await req.json();
+    const { frame_base64, context, memory_context, goals_context, isizulu_immersion } = await req.json();
 
     if (!frame_base64) {
       return new Response(
@@ -72,7 +75,11 @@ serve(async (req) => {
       );
     }
 
-    const systemContent = SYSTEM_PROMPT + (memory_context || "") + (goals_context || "");
+    const immersionNote = isizulu_immersion
+      ? "\n\nISIZULU IMMERSION MODE: The user prefers isiZulu-first responses. Write your description and proactive_suggestion primarily in isiZulu, with brief English gloss in parentheses when helpful. Use warm, natural isiZulu register."
+      : "";
+
+    const systemContent = SYSTEM_PROMPT + immersionNote + (memory_context || "") + (goals_context || "");
 
     const messages: any[] = [
       { role: "system", content: systemContent },
@@ -94,7 +101,7 @@ serve(async (req) => {
       "point_at_screen", "freeze_frame", "remember_object",
       "search_knowledge_base", "zoom_camera", "alert_user",
       "set_goal", "complete_milestone", "search_goals",
-      "delegate_to_specialist",
+      "delegate_to_specialist", "describe_in_isizulu",
     ];
 
     const response = await fetch(
@@ -158,6 +165,7 @@ serve(async (req) => {
                               milestone: { type: "string" },
                               specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
                               task: { type: "string", description: "Task to delegate to specialist." },
+                              subject: { type: "string", description: "Subject for describe_in_isizulu." },
                             },
                           },
                         },

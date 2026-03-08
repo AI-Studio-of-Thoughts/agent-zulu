@@ -1,8 +1,5 @@
 /**
- * Agent Memory — Persistent object/scene memory + goal tracking across sessions.
- *
- * Stores remembered objects and goals in localStorage.
- * Provides helpers to save, load, search, and format for system prompts.
+ * Agent Memory — Persistent object/scene memory + goal tracking + settings.
  */
 
 export interface MemoryEntry {
@@ -24,6 +21,7 @@ export interface AgentSettings {
   memoryEnabled: boolean;
   proactivityLevel: "off" | "low" | "medium" | "high";
   sovereignTraining: boolean;
+  isiZuluImmersion: boolean;
 }
 
 const STORAGE_KEY = "agent-zulu-memory";
@@ -66,9 +64,6 @@ export function clearMemories(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-/**
- * Fuzzy search memories by keyword matching on name + description.
- */
 export function searchMemories(query: string): MemoryEntry[] {
   const memories = loadMemories();
   if (!query.trim()) return memories.slice(-5);
@@ -82,9 +77,6 @@ export function searchMemories(query: string): MemoryEntry[] {
     .slice(-5);
 }
 
-/**
- * Format memories as a context string for injection into the system prompt.
- */
 export function formatMemoriesForPrompt(): string {
   const memories = loadMemories();
   if (memories.length === 0) return "";
@@ -161,12 +153,26 @@ export function formatGoalsForPrompt(): string {
   return `\n\nThe user has these active goals you should support and check in on:\n${items}\nProactively reference these when relevant.`;
 }
 
+/**
+ * Format goal reminders for local/offline mode (isiZulu + English).
+ */
+export function getGoalReminders(): string[] {
+  const goals = loadGoals().filter((g) => g.active);
+  return goals.map((g) => {
+    const progress = g.milestones.length > 0
+      ? ` (${g.completedMilestones.length}/${g.milestones.length})`
+      : "";
+    return `Sikhumbula: ${g.name}${progress} — ${g.description}`;
+  });
+}
+
 // ── Settings ────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS: AgentSettings = {
   memoryEnabled: true,
   proactivityLevel: "medium",
   sovereignTraining: false,
+  isiZuluImmersion: false,
 };
 
 export function loadSettings(): AgentSettings {
@@ -186,7 +192,7 @@ export function saveSettings(settings: Partial<AgentSettings>): void {
 
 export function getProactiveThreshold(level: AgentSettings["proactivityLevel"]): number {
   switch (level) {
-    case "off": return 2; // effectively never
+    case "off": return 2;
     case "low": return 0.9;
     case "medium": return 0.7;
     case "high": return 0.5;
