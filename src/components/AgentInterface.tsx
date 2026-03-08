@@ -40,7 +40,11 @@ interface PointerData {
 }
 
 const AgentInterface = () => {
-  const adapter = useMemo(() => new HybridAdapter(), []);
+  const [settings, setSettings] = useState<AgentSettings>(loadSettings);
+  const adapter = useMemo(
+    () => settings.sovereignBeta ? new SovereignBetaAdapter() : new HybridAdapter(),
+    [settings.sovereignBeta]
+  );
   const agent = useAgentProtocol(adapter);
 
   const [isConnecting, setIsConnecting] = useState(false);
