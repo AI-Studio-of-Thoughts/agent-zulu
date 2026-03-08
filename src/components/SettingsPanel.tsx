@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe } from "lucide-react";
+import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe, BarChart3 } from "lucide-react";
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   loadSettings,
   saveSettings,
@@ -269,6 +270,9 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   </div>
                 )}
 
+                {/* Analytics link */}
+                <AnalyticsLink />
+
                 {/* Clear Data */}
                 <button
                   onClick={handleClearMemory}
@@ -283,6 +287,19 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
         )}
       </AnimatePresence>
     </>
+  );
+};
+
+const AnalyticsLink = () => {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate("/analytics")}
+      className="flex items-center gap-2 w-full py-2 px-3 rounded-lg bg-primary/10 text-primary/70 hover:text-primary hover:bg-primary/20 transition-colors font-mono text-[10px] tracking-wider"
+    >
+      <BarChart3 className="w-3 h-3" />
+      SOVEREIGN ANALYTICS
+    </button>
   );
 };
 
