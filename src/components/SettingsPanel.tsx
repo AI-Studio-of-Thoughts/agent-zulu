@@ -180,6 +180,23 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   />
                 </div>
 
+                {/* Shadow Comparison Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FlaskConical className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">Shadow Comparison</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Compare AI models silently
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={settings.shadowComparison}
+                    onToggle={() => update({ shadowComparison: !settings.shadowComparison })}
+                  />
+                </div>
+
                 {/* Clear Data */}
                 <button
                   onClick={handleClearMemory}
