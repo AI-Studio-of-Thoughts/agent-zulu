@@ -6,11 +6,13 @@
  * (NO raw frames or audio) to Supabase — only when user opts in.
  *
  * Also feeds the Community Data Flywheel when ubuntu sharing is enabled.
+ * Failed operations are queued via the offline outbox for later retry.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 import { loadSettings } from "@/lib/agent-memory";
 import { shareToFlywheel } from "@/lib/community-flywheel";
+import { enqueue } from "@/lib/offline-outbox";
 
 let sessionId: string | null = null;
 
@@ -43,13 +45,19 @@ export async function shadowLog(
   // Private session logs (sovereign training)
   if (settings.sovereignTraining) {
     try {
-      await (supabase as any).from("session_logs").insert({
+      const { error } = await (supabase as any).from("session_logs").insert({
         session_id: sessionId,
         event_type: eventType,
         payload: sanitized,
       });
-    } catch (err) {
-      console.debug("[ShadowLog] Failed:", err);
+      if (error) throw error;
+    } catch {
+      // Queue for retry
+      await enqueue("session_logs", {
+        session_id: sessionId,
+        event_type: eventType,
+        payload: sanitized,
+      });
     }
   }
 
