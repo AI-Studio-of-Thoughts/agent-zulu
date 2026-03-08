@@ -573,6 +573,12 @@ const AgentInterface = () => {
               }}
             />
 
+            {/* Reflection overlay */}
+            <ReflectionOverlay
+              reflection={activeReflection}
+              onDismiss={() => setActiveReflection(null)}
+            />
+
             {/* Settings panel */}
             <SettingsPanel onSettingsChange={handleSettingsChange} />
 
