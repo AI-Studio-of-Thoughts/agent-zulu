@@ -73,7 +73,7 @@ const AgentInterface = () => {
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   // Settings
-  const [settings, setSettings] = useState<AgentSettings>(loadSettings);
+  // Settings — moved to top of component
   const proactiveThreshold = getProactiveThreshold(settings.proactivityLevel);
 
   // Proactive rate limiter

@@ -197,6 +197,31 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   />
                 </div>
 
+                {/* Sovereign Beta Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">Sovereign Beta</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Heritage-first isiZulu vision
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={settings.sovereignBeta}
+                    onToggle={() => update({ sovereignBeta: !settings.sovereignBeta })}
+                  />
+                </div>
+
+                {settings.sovereignBeta && (
+                  <div className="pl-6 font-mono text-[9px] text-primary/60 border-l border-primary/20 ml-2">
+                    ⚡ Vision routed through sovereign heritage engine.
+                    <br />
+                    Requires reconnect to take effect.
+                  </div>
+                )}
+
                 {/* Clear Data */}
                 <button
                   onClick={handleClearMemory}
