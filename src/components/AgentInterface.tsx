@@ -6,8 +6,15 @@ import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
 import ConnectionStatus from "./ConnectionStatus";
 import VisionLoop from "./VisionLoop";
+import type { VisionLoopHandle } from "./VisionLoop";
 import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
+
+interface PointerData {
+  x: number;
+  y: number;
+  description: string;
+}
 
 const AgentInterface = () => {
   const adapter = useMemo(() => new HybridAdapter(), []);
@@ -20,10 +27,48 @@ const AgentInterface = () => {
   const [sessionDuration, setSessionDuration] = useState(0);
   const [showStartScreen, setShowStartScreen] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const visionLoopRef = useRef<VisionLoopHandle>(null);
+
+  // Tool overlay state
+  const [pointer, setPointer] = useState<PointerData | null>(null);
+  const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  const pointerTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const isConnected = agent.status === "connected";
   const isSpeaking = agent.voiceState.isSpeaking;
   const isListening = agent.voiceState.isListening;
+
+  // Register tool handlers on the adapter
+  useEffect(() => {
+    agent.registerTools({
+      point_at_screen: async (params) => {
+        const x = Number(params.x ?? 0.5);
+        const y = Number(params.y ?? 0.5);
+        const description = String(params.description ?? "here");
+        setPointer({ x, y, description });
+        clearTimeout(pointerTimerRef.current);
+        pointerTimerRef.current = setTimeout(() => setPointer(null), 5000);
+        return `Pointed at (${x.toFixed(2)}, ${y.toFixed(2)}): ${description}`;
+      },
+      freeze_frame: async () => {
+        const frame = visionLoopRef.current?.getCurrentFrame();
+        if (frame) {
+          setFrozenFrame(frame);
+          visionLoopRef.current?.pause(10000);
+          clearTimeout(freezeTimerRef.current);
+          freezeTimerRef.current = setTimeout(() => setFrozenFrame(null), 10000);
+          return "Frame frozen for inspection.";
+        }
+        return "No frame available to freeze.";
+      },
+    });
+  }, [agent]);
+
+  const dismissFrozen = useCallback(() => {
+    setFrozenFrame(null);
+    clearTimeout(freezeTimerRef.current);
+  }, []);
 
   // Session timer
   useEffect(() => {
@@ -39,7 +84,6 @@ const AgentInterface = () => {
   const startSession = useCallback(async () => {
     setIsConnecting(true);
     try {
-      // Request mic permission, try camera too
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         setMediaStream(stream);
@@ -50,15 +94,12 @@ const AgentInterface = () => {
       }
       setMicActive(true);
 
-      // Get signed URL from edge function
       const { data, error } = await supabase.functions.invoke("elevenlabs-conversation-token");
       if (error || !data?.signed_url) {
         throw new Error(error?.message || "No signed URL received");
       }
 
-      // Connect through the protocol — backend-agnostic
       await agent.connect({ signed_url: data.signed_url });
-
       setShowStartScreen(false);
     } catch (err) {
       console.error("Failed to start session:", err);
@@ -73,6 +114,8 @@ const AgentInterface = () => {
     setMediaStream(null);
     setCameraActive(false);
     setShowStartScreen(true);
+    setPointer(null);
+    setFrozenFrame(null);
   }, [agent, mediaStream]);
 
   const toggleMic = useCallback(() => {
@@ -184,8 +227,14 @@ const AgentInterface = () => {
               />
             </div>
 
-            <CameraPreview stream={mediaStream} isActive={cameraActive} />
-            <VisionLoop mediaStream={mediaStream} vision={agent.vision} />
+            <CameraPreview
+              stream={mediaStream}
+              isActive={cameraActive}
+              pointer={pointer}
+              frozenFrame={frozenFrame}
+              onDismissFrozen={dismissFrozen}
+            />
+            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}
