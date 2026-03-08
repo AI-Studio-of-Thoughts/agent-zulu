@@ -1,13 +1,12 @@
 /**
  * ReflectionOverlay — AR visualization of the agent's autonomous reflection.
  *
- * Renders a cinematic "reflection moment" when the Second Intelligence
- * pauses to synthesize session insights — proverbs, cultural threads,
- * goal updates, and community echoes — all overlaid on the cockpit.
+ * Renders a cinematic "reflection moment" with generative poem,
+ * predictive goal ghost overlay, and ubuntu community echoes.
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, BookOpen, Target, Users, X } from "lucide-react";
+import { Sparkles, BookOpen, Target, Users, X, Feather, Eye } from "lucide-react";
 import type { ReflectionEvent, ReflectionOverlayItem } from "@/protocol/types";
 
 interface ReflectionOverlayProps {
@@ -33,7 +32,7 @@ const ReflectionOverlay = ({ reflection, onDismiss }: ReflectionOverlayProps) =>
           exit={{ opacity: 0 }}
           transition={{ duration: 0.6 }}
         >
-          {/* Backdrop with subtle blur */}
+          {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-background/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
@@ -43,7 +42,7 @@ const ReflectionOverlay = ({ reflection, onDismiss }: ReflectionOverlayProps) =>
 
           {/* Main reflection card */}
           <motion.div
-            className="relative glass-surface rounded-2xl p-6 max-w-sm w-[90vw] border border-primary/30 shadow-[0_0_40px_8px_hsl(var(--primary)/0.15)]"
+            className="relative glass-surface rounded-2xl p-6 max-w-sm w-[90vw] border border-primary/30 shadow-[0_0_40px_8px_hsl(var(--primary)/0.15)] max-h-[85vh] overflow-y-auto"
             initial={{ scale: 0.85, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: -10 }}
@@ -93,7 +92,29 @@ const ReflectionOverlay = ({ reflection, onDismiss }: ReflectionOverlayProps) =>
               </motion.p>
             )}
 
-            {/* Proverb — the heart */}
+            {/* Generated Poem — the crown jewel */}
+            {reflection.generated_poem_isizulu && (
+              <motion.div
+                className="bg-accent/10 rounded-lg px-4 py-3 border border-accent/20 mb-4"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.55 }}
+              >
+                <div className="flex items-start gap-2">
+                  <Feather className="w-3.5 h-3.5 text-accent mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-mono text-[8px] tracking-[0.2em] text-accent/60 uppercase block mb-1">
+                      Izibongo — Session Poem
+                    </span>
+                    <p className="font-mono text-[11px] text-accent leading-relaxed whitespace-pre-line italic">
+                      {reflection.generated_poem_isizulu}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Proverb */}
             <motion.div
               className="bg-primary/10 rounded-lg px-4 py-3 border border-primary/20 mb-4"
               initial={{ opacity: 0, x: -10 }}
@@ -120,6 +141,31 @@ const ReflectionOverlay = ({ reflection, onDismiss }: ReflectionOverlayProps) =>
                 <p className="font-mono text-[10px] text-accent/80 leading-relaxed">
                   {reflection.goal_update}
                 </p>
+              </motion.div>
+            )}
+
+            {/* Predictive Goal — ghost overlay */}
+            {reflection.predicted_next_goal && (reflection.prediction_confidence ?? 0) > 0.5 && (
+              <motion.div
+                className="flex items-start gap-2 mb-3 bg-primary/5 rounded-lg px-3 py-2 border border-primary/10"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.85 }}
+              >
+                <Eye className="w-3 h-3 text-primary/50 mt-0.5 flex-shrink-0" />
+                <div>
+                  <span className="font-mono text-[7px] tracking-[0.2em] text-primary/40 uppercase block mb-0.5">
+                    Predicted • {Math.round((reflection.prediction_confidence ?? 0) * 100)}% confidence
+                  </span>
+                  {reflection.isizulu_suggestion && (
+                    <p className="font-mono text-[10px] text-primary/70 leading-relaxed italic">
+                      {reflection.isizulu_suggestion}
+                    </p>
+                  )}
+                  <p className="font-mono text-[9px] text-muted-foreground leading-relaxed mt-0.5">
+                    {reflection.predicted_next_goal}
+                  </p>
+                </div>
               </motion.div>
             )}
 
@@ -202,6 +248,24 @@ const ReflectionOverlay = ({ reflection, onDismiss }: ReflectionOverlayProps) =>
                 </span>
               </motion.div>
             ))}
+
+          {/* Predictive ghost overlay on PiP area — faded future icon */}
+          {reflection.predicted_next_goal && (reflection.prediction_confidence ?? 0) > 0.7 && (
+            <motion.div
+              className="absolute bottom-36 right-8 z-50 pointer-events-none"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: [0.3, 0.6, 0.3], scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 3, repeat: Infinity }}
+            >
+              <div className="w-10 h-10 rounded-full border border-primary/20 flex items-center justify-center bg-primary/5 backdrop-blur-sm">
+                <Target className="w-5 h-5 text-primary/40" />
+              </div>
+              <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[6px] text-primary/40">
+                next goal
+              </span>
+            </motion.div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

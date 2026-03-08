@@ -3,8 +3,8 @@
  *
  * Synthesizes a session's recent transcripts, vision observations,
  * gestures, goals, and community flywheel data into a culturally
- * rich "reflection" — like a wise elder summarizing what happened,
- * tying it to proverbs, updating goals, and pulling community echoes.
+ * rich "reflection" — with generative poem, predictive goals,
+ * and ubuntu wisdom boost.
  *
  * Uses Gemini 2.5 Pro for deep reasoning.
  */
@@ -29,11 +29,15 @@ YOUR TASK:
 3. SUGGEST a goal update if the session reveals progress or new directions
 4. GENERATE AR overlay items — short labels tied to key moments/objects seen
 5. WEAVE in community echoes if provided — "Others in your community also..."
+6. COMPOSE a short isiZulu poem (izibongo/praise poetry, 2-4 lines) inspired by this specific session — reference what was seen, heard, or gestured. Make it vivid and personal, not generic.
+7. GENERATE an image_prompt (English, 1 sentence) describing a small AR visual that captures the session's essence — e.g. "A glowing Zulu beadwork pattern forming from cyan light particles"
+8. PREDICT the user's likely next goal based on session trajectory. Include confidence (0-1) and an isiZulu suggestion phrased as gentle elder advice: "Ngicabanga ukuthi singathuthukisa..."
 
 STYLE:
 - Think like an umdala (elder) reflecting by the fire after the day
 - Be specific to what happened, not generic platitudes
 - The proverb must genuinely connect to the session content
+- The poem must reference specific details from the session
 - Overlays should reference specific objects/gestures/moments from the session
 - Ubuntu warmth: celebrate connections, learning, cultural discovery
 
@@ -42,11 +46,11 @@ You MUST call the "reflection_response" tool with your structured response.`;
 function getLangPrompt(lang: string): string {
   switch (lang) {
     case "swahili":
-      return "\n\nRespond in Kiswahili first with methali. Use East African cultural lens.\n";
+      return "\n\nRespond in Kiswahili first with methali. Poem in Kiswahili. Use East African cultural lens.\n";
     case "xhosa":
-      return "\n\nRespond in isiXhosa first with amaqhalo. Use amaXhosa cultural lens.\n";
+      return "\n\nRespond in isiXhosa first with amaqhalo. Poem in isiXhosa. Use amaXhosa cultural lens.\n";
     case "yoruba":
-      return "\n\nRespond in Yorùbá first with òwe. Use Yorùbá cultural lens.\n";
+      return "\n\nRespond in Yorùbá first with òwe. Poem in Yorùbá. Use Yorùbá cultural lens.\n";
     default:
       return "";
   }
@@ -76,7 +80,7 @@ serve(async (req) => {
       community_query,
     } = await req.json();
 
-    // Fetch community echoes if sharing is enabled
+    // Fetch community echoes — Ubuntu Wisdom Boost
     let communityEcho = "";
     if (community_query) {
       try {
@@ -84,21 +88,28 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const sb = createClient(supabaseUrl, supabaseKey);
 
+        // Pull recent community logs matching cultural tags
         const { data: communityLogs } = await sb
           .from("community_logs")
           .select("event_type, payload, language, region")
           .order("created_at", { ascending: false })
-          .limit(20);
+          .limit(30);
 
         if (communityLogs && communityLogs.length > 0) {
+          // Filter for culturally relevant entries
+          const culturalKeywords = ["beadwork", "ceremony", "family", "ubuhlalu", "umsebenzi", "umndeni", "isaga", "gesture", "emotion"];
           const culturalLogs = communityLogs.filter(
-            (l: any) => l.payload?.emotion || l.payload?.gesture_type
+            (l: any) => {
+              const payloadStr = JSON.stringify(l.payload || {}).toLowerCase();
+              return l.payload?.emotion || l.payload?.gesture_type || 
+                culturalKeywords.some(k => payloadStr.includes(k));
+            }
           );
           if (culturalLogs.length > 0) {
-            communityEcho = `\n\nCOMMUNITY DATA (anonymous, from ubuntu flywheel):\n${culturalLogs
-              .slice(0, 5)
-              .map((l: any) => `- ${l.event_type}: ${JSON.stringify(l.payload)} [${l.language}, ${l.region}]`)
-              .join("\n")}`;
+            const selected = culturalLogs.slice(0, 3);
+            communityEcho = `\n\nUBUNTU COMMUNITY WISDOM (anonymous, from ${culturalLogs.length} recent cultural interactions):\n${selected
+              .map((l: any) => `- [${l.region || "unknown"}/${l.language || "isizulu"}] ${l.event_type}: ${JSON.stringify(l.payload)}`)
+              .join("\n")}\n\nWeave 1 anonymized community echo into the reflection, phrased as: "Abanye abantu [region] babhekene nalokhu ngale izaga..." or similar ubuntu-warm framing.`;
           }
         }
       } catch (e) {
@@ -134,7 +145,7 @@ serve(async (req) => {
       { role: "system", content: systemContent },
       {
         role: "user",
-        content: `Reflect on this session:\n\n${sessionContext}\n\nSynthesize a reflection that captures the cultural arc, ties it to a proverb, and suggests next steps with ubuntu warmth.`,
+        content: `Reflect on this session:\n\n${sessionContext}\n\nSynthesize a reflection that captures the cultural arc, ties it to a proverb, composes a session-specific isiZulu poem, predicts the next goal, and suggests next steps with ubuntu warmth.`,
       },
     ];
 
@@ -149,14 +160,14 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "google/gemini-2.5-pro",
           messages,
-          max_tokens: 600,
+          max_tokens: 900,
           temperature: 0.85,
           tools: [
             {
               type: "function",
               function: {
                 name: "reflection_response",
-                description: "Structured reflection on the session.",
+                description: "Structured reflection with poem, prediction, and community wisdom.",
                 parameters: {
                   type: "object",
                   properties: {
@@ -196,10 +207,30 @@ serve(async (req) => {
                     },
                     community_echo: {
                       type: "string",
-                      description: "Insight drawn from community data, framed with ubuntu.",
+                      description: "Insight drawn from community data, framed with ubuntu warmth.",
+                    },
+                    generated_poem_isizulu: {
+                      type: "string",
+                      description: "A 2-4 line isiZulu poem (izibongo/praise) specific to this session's content.",
+                    },
+                    generated_image_prompt: {
+                      type: "string",
+                      description: "English image generation prompt (1 sentence) for an AR visual capturing the session essence.",
+                    },
+                    predicted_next_goal: {
+                      type: "string",
+                      description: "Predicted next goal for the user based on session trajectory.",
+                    },
+                    prediction_confidence: {
+                      type: "number",
+                      description: "Confidence 0-1 in the predicted goal.",
+                    },
+                    isizulu_suggestion: {
+                      type: "string",
+                      description: "isiZulu phrased suggestion for the predicted goal, like elder advice.",
                     },
                   },
-                  required: ["summary", "proverb", "overlays"],
+                  required: ["summary", "proverb", "overlays", "generated_poem_isizulu"],
                   additionalProperties: false,
                 },
               },
@@ -240,6 +271,7 @@ serve(async (req) => {
           summary: "Ngicabanga ngalesi sikhathi esidlule...",
           proverb: "Umuntu ngumuntu ngabantu.",
           overlays: [],
+          generated_poem_isizulu: "Izibongo zesigameko — umoya wokucabanga uyavuka.",
         };
       }
     } else {
@@ -247,6 +279,7 @@ serve(async (req) => {
         summary: data.choices?.[0]?.message?.content || "Ngicabanga...",
         proverb: "Umuntu ngumuntu ngabantu.",
         overlays: [],
+        generated_poem_isizulu: "Izibongo zesigameko — umoya wokucabanga uyavuka.",
       };
     }
 
