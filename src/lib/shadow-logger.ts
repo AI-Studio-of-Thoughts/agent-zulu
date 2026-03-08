@@ -4,10 +4,13 @@
  * Anonymized session telemetry for sovereign model training.
  * Logs tool calls, specialist delegations, proactive triggers, and metadata
  * (NO raw frames or audio) to Supabase — only when user opts in.
+ *
+ * Also feeds the Community Data Flywheel when ubuntu sharing is enabled.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 import { loadSettings } from "@/lib/agent-memory";
+import { shareToFlywheel } from "@/lib/community-flywheel";
 
 let sessionId: string | null = null;
 
@@ -20,28 +23,39 @@ export function endShadowSession(): void {
   sessionId = null;
 }
 
+export function getSessionId(): string | null {
+  return sessionId;
+}
+
 export async function shadowLog(
   eventType: string,
   payload: Record<string, unknown>
 ): Promise<void> {
   const settings = loadSettings();
-  if (!settings.sovereignTraining || !sessionId) return;
+  if (!sessionId) return;
 
-  try {
-    // Strip any raw frame data — only metadata
-    const sanitized = { ...payload };
-    delete sanitized.frame_base64;
-    delete sanitized.frame;
-    delete sanitized.audio;
+  // Strip raw data
+  const sanitized = { ...payload };
+  delete sanitized.frame_base64;
+  delete sanitized.frame;
+  delete sanitized.audio;
 
-    await (supabase as any).from("session_logs").insert({
-      session_id: sessionId,
-      event_type: eventType,
-      payload: sanitized,
-    });
-  } catch (err) {
-    // Silent fail — telemetry should never block interaction
-    console.debug("[ShadowLog] Failed:", err);
+  // Private session logs (sovereign training)
+  if (settings.sovereignTraining) {
+    try {
+      await (supabase as any).from("session_logs").insert({
+        session_id: sessionId,
+        event_type: eventType,
+        payload: sanitized,
+      });
+    } catch (err) {
+      console.debug("[ShadowLog] Failed:", err);
+    }
+  }
+
+  // Community flywheel (ubuntu sharing)
+  if (settings.ubuntuDataSharing) {
+    shareToFlywheel(sessionId, eventType, sanitized);
   }
 }
 

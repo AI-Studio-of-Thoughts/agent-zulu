@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe, BarChart3 } from "lucide-react";
+import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe, BarChart3, Users } from "lucide-react";
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -267,6 +267,32 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                     <p className="font-mono text-[9px] text-primary/60 border-l border-primary/20 pl-2">
                       🌍 Sovereign vision adapts proverbs & symbolism to selected culture.
                     </p>
+                  </div>
+                )}
+
+                {/* Ubuntu Data Sharing */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">Ubuntu Data Flywheel</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Share anonymous data for collective AI
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={settings.ubuntuDataSharing}
+                    onToggle={() => update({ ubuntuDataSharing: !settings.ubuntuDataSharing })}
+                  />
+                </div>
+
+                {settings.ubuntuDataSharing && (
+                  <div className="pl-6 font-mono text-[9px] text-primary/60 border-l border-primary/20 ml-2">
+                    🤝 Umuntu ngumuntu ngabantu — I am because we are.
+                    <br />
+                    Your anonymized session data helps train sovereign African AI for everyone.
+                    No personal data, frames, or audio is ever shared.
                   </div>
                 )}
 
