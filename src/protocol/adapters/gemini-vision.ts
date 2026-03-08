@@ -133,8 +133,15 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
       });
 
       if (error) {
+        const msg = typeof error === "object" && error.message ? error.message : String(error);
+        // Silently back off on rate limits — don't surface as error
+        if (msg.includes("429") || msg.includes("Rate limit")) {
+          console.warn("[GeminiVision] Rate limited — backing off 30s");
+          this.backoffUntil = Date.now() + 30000;
+          return;
+        }
         console.error("[GeminiVision] Edge function error:", error);
-        this.emit({ type: "error", error: error.message || "Vision reasoning failed" });
+        this.emit({ type: "error", error: msg || "Vision reasoning failed" });
         return;
       }
 

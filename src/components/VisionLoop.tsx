@@ -36,8 +36,8 @@ interface VisionLoopProps {
 
 // ── Motion Detection Config ────────────────────────────────
 const MOTION_THRESHOLD = 0.04;    // 4% pixel change triggers "active"
-const IDLE_INTERVAL = 10000;      // 10s between frames when idle
-const ACTIVE_INTERVAL = 2000;     // 2s between frames during motion/voice
+const IDLE_INTERVAL = 15000;      // 15s between frames when idle
+const ACTIVE_INTERVAL = 6000;     // 6s between frames during motion/voice
 const BURST_WINDOW = 8000;        // stay in burst mode for 8s after last motion
 const DIFF_SAMPLE_SIZE = 64;      // downsample to 64x64 for fast diff
 
