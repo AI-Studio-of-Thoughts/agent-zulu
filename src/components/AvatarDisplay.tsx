@@ -1,13 +1,26 @@
 import { motion } from "framer-motion";
 import agentAvatar from "@/assets/agent-avatar.png";
+import type { AvatarEmotion } from "@/protocol/types";
 
 interface AvatarDisplayProps {
   isListening: boolean;
   isSpeaking: boolean;
   isConnected: boolean;
+  emotion?: AvatarEmotion;
+  intensity?: number;
 }
 
-const AvatarDisplay = ({ isListening, isSpeaking, isConnected }: AvatarDisplayProps) => {
+const AvatarDisplay = ({
+  isListening,
+  isSpeaking,
+  isConnected,
+  emotion = "neutral",
+  intensity = 0.2,
+}: AvatarDisplayProps) => {
+  // Map emotion to glow color intensity
+  const glowIntensity = intensity;
+  const pulseSpeed = isSpeaking ? 0.8 : emotion === "thinking" ? 1.5 : 3;
+
   return (
     <div className="relative flex items-center justify-center w-full h-full">
       {/* Outer glow rings */}
@@ -18,9 +31,9 @@ const AvatarDisplay = ({ isListening, isSpeaking, isConnected }: AvatarDisplayPr
             style={{ width: "85%", height: "85%", maxWidth: 520, maxHeight: 520 }}
             animate={{
               scale: isSpeaking ? [1, 1.08, 1] : [1, 1.03, 1],
-              opacity: isSpeaking ? [0.4, 0.7, 0.4] : [0.2, 0.4, 0.2],
+              opacity: [0.2 * glowIntensity, 0.7 * glowIntensity, 0.2 * glowIntensity],
             }}
-            transition={{ duration: isSpeaking ? 0.8 : 3, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: pulseSpeed, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div
             className="absolute rounded-full border border-accent/15"
@@ -79,6 +92,15 @@ const AvatarDisplay = ({ isListening, isSpeaking, isConnected }: AvatarDisplayPr
             transition={{ duration: 0.5, repeat: Infinity }}
           />
         )}
+
+        {/* Emotion-based overlay for alert/empathetic */}
+        {emotion === "alert" && (
+          <motion.div
+            className="absolute inset-0 bg-destructive/5"
+            animate={{ opacity: [0, 0.15, 0] }}
+            transition={{ duration: 0.3, repeat: Infinity }}
+          />
+        )}
       </motion.div>
 
       {/* Status label */}
@@ -92,6 +114,8 @@ const AvatarDisplay = ({ isListening, isSpeaking, isConnected }: AvatarDisplayPr
           <span className="text-primary text-glow">Speaking</span>
         ) : isListening ? (
           <span className="text-primary/70">Listening…</span>
+        ) : emotion === "thinking" ? (
+          <span className="text-accent">Thinking…</span>
         ) : isConnected ? (
           <span>Standby</span>
         ) : (

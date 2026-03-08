@@ -1,14 +1,17 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useConversation } from "@elevenlabs/react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Power } from "lucide-react";
 import AvatarDisplay from "./AvatarDisplay";
 import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
 import ConnectionStatus from "./ConnectionStatus";
+import { useAgentProtocol, ElevenLabsAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
 
 const AgentInterface = () => {
+  const adapter = useMemo(() => new ElevenLabsAdapter(), []);
+  const agent = useAgentProtocol(adapter);
+
   const [isConnecting, setIsConnecting] = useState(false);
   const [micActive, setMicActive] = useState(true);
   const [cameraActive, setCameraActive] = useState(false);
@@ -17,21 +20,9 @@ const AgentInterface = () => {
   const [showStartScreen, setShowStartScreen] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
-  const conversation = useConversation({
-    onConnect: () => {
-      console.log("Connected to ElevenLabs agent");
-    },
-    onDisconnect: () => {
-      console.log("Disconnected from ElevenLabs agent");
-    },
-    onError: (error) => {
-      console.error("Conversation error:", error);
-    },
-  });
-
-  const isConnected = conversation.status === "connected";
-  const isSpeaking = conversation.isSpeaking;
-  const isListening = isConnected && !isSpeaking;
+  const isConnected = agent.status === "connected";
+  const isSpeaking = agent.voiceState.isSpeaking;
+  const isListening = agent.voiceState.isListening;
 
   // Session timer
   useEffect(() => {
@@ -47,10 +38,7 @@ const AgentInterface = () => {
   const startSession = useCallback(async () => {
     setIsConnecting(true);
     try {
-      // Request mic permission
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Try to get camera too
+      // Request mic permission, try camera too
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         setMediaStream(stream);
@@ -63,15 +51,12 @@ const AgentInterface = () => {
 
       // Get signed URL from edge function
       const { data, error } = await supabase.functions.invoke("elevenlabs-conversation-token");
-
       if (error || !data?.signed_url) {
         throw new Error(error?.message || "No signed URL received");
       }
 
-      // Start ElevenLabs conversation
-      await conversation.startSession({
-        signedUrl: data.signed_url,
-      });
+      // Connect through the protocol — backend-agnostic
+      await agent.connect({ signed_url: data.signed_url });
 
       setShowStartScreen(false);
     } catch (err) {
@@ -79,23 +64,25 @@ const AgentInterface = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, [conversation]);
+  }, [agent]);
 
   const endSession = useCallback(async () => {
-    await conversation.endSession();
+    await agent.disconnect();
     mediaStream?.getTracks().forEach((t) => t.stop());
     setMediaStream(null);
     setCameraActive(false);
     setShowStartScreen(true);
-  }, [conversation, mediaStream]);
+  }, [agent, mediaStream]);
 
   const toggleMic = useCallback(() => {
     if (mediaStream) {
       const audioTracks = mediaStream.getAudioTracks();
       audioTracks.forEach((t) => (t.enabled = !t.enabled));
-      setMicActive((v) => !v);
+      const newState = !micActive;
+      setMicActive(newState);
+      agent.setMicMuted(!newState);
     }
-  }, [mediaStream]);
+  }, [mediaStream, micActive, agent]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background">
@@ -133,7 +120,7 @@ const AgentInterface = () => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
             >
-              Multi-LLM Conversational AI
+              Sovereign AI Cockpit
             </motion.p>
 
             <motion.button
@@ -146,7 +133,6 @@ const AgentInterface = () => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
             >
-              {/* Pulse ring */}
               <motion.div
                 className="absolute inset-0 rounded-full border border-primary/30"
                 animate={{ scale: [1, 1.4], opacity: [0.5, 0] }}
@@ -192,6 +178,8 @@ const AgentInterface = () => {
                 isListening={isListening}
                 isSpeaking={isSpeaking}
                 isConnected={isConnected}
+                emotion={agent.avatarState.emotion}
+                intensity={agent.avatarState.intensity}
               />
             </div>
 
