@@ -174,6 +174,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
   proactivityLevel: "medium",
   sovereignTraining: false,
   isiZuluImmersion: false,
+  shadowComparison: false,
 };
 
 export function loadSettings(): AgentSettings {
