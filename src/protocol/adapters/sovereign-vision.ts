@@ -258,6 +258,44 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
     }
   }
 
+  private async fallbackToGemini(
+    base64: string,
+    memoryContext: string,
+    goalsContext: string,
+    startTime: number
+  ): Promise<any | null> {
+    try {
+      const { data: geminiData, error: geminiError } = await supabase.functions.invoke("vision-reasoning", {
+        body: {
+          frame_base64: base64,
+          context: this.context,
+          memory_context: memoryContext,
+          goals_context: goalsContext,
+          isizulu_immersion: true,
+        },
+      });
+
+      if (geminiError) {
+        const msg = typeof geminiError === "object" && geminiError.message ? geminiError.message : String(geminiError);
+        if (msg.includes("429") || msg.includes("Rate limit")) {
+          this.backoffUntil = Date.now() + 30000;
+          return null;
+        }
+        this.emit({ type: "error", error: msg });
+        return null;
+      }
+
+      shadowLog("sovereign_fallback", {
+        reason: this._sovereignDisabledForSession ? "latency_guard" : "error",
+        fallback_latency: Date.now() - startTime,
+      });
+
+      return geminiData;
+    } catch {
+      return null;
+    }
+  }
+
   private async blobToBase64(frame: ImageData | Blob): Promise<string> {
     let blob: Blob;
     if (frame instanceof Blob) {

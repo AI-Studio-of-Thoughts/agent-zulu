@@ -86,8 +86,30 @@ const AgentInterface = () => {
 
   // Feedback handler
   const handleFeedback = useCallback((type: "proactive" | "alert", text: string, rating: "up" | "down") => {
-    shadowLog("user_feedback", { type, text, rating });
-  }, []);
+    shadowLog("user_feedback", { type, text, rating, sovereign_beta: settings.sovereignBeta });
+  }, [settings.sovereignBeta]);
+
+  // Log sovereign toggle changes and first impression
+  const sovereignFirstLogged = useRef(false);
+  const handleSettingsChange = useCallback((newSettings: AgentSettings) => {
+    if (newSettings.sovereignBeta !== settings.sovereignBeta) {
+      shadowLog("sovereign_toggle", { enabled: newSettings.sovereignBeta });
+      sovereignFirstLogged.current = false; // Reset for next activation
+    }
+    setSettings(newSettings);
+  }, [settings.sovereignBeta]);
+
+  // Log first sovereign response
+  useEffect(() => {
+    if (!settings.sovereignBeta || sovereignFirstLogged.current) return;
+    const unsub = adapter.on((event) => {
+      if (event.type === "transcript" && event.entry.role === "agent" && !sovereignFirstLogged.current) {
+        sovereignFirstLogged.current = true;
+        shadowLog("sovereign_first_impression", { text: event.entry.text });
+      }
+    });
+    return unsub;
+  }, [adapter, settings.sovereignBeta]);
 
   // Register tool handlers on the adapter
   useEffect(() => {
