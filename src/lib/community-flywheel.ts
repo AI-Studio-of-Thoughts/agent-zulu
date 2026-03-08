@@ -4,10 +4,13 @@
  * Opt-in anonymous log sharing for collective sovereign fine-tuning.
  * All data is anonymized: session IDs are hashed, no PII is stored,
  * no raw frames or audio — only event metadata and cultural signals.
+ *
+ * Failed operations are queued via the offline outbox for later retry.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 import { loadSettings } from "@/lib/agent-memory";
+import { enqueue } from "@/lib/offline-outbox";
 
 // Stable device hash — same device always maps to same hash
 let deviceHash: string | null = null;
@@ -18,7 +21,6 @@ function getDeviceHash(): string {
     deviceHash = stored;
     return stored;
   }
-  // Generate a stable anonymous device fingerprint
   const raw = [
     navigator.userAgent,
     navigator.language,
@@ -26,7 +28,6 @@ function getDeviceHash(): string {
     screen.height,
     new Date().getTimezoneOffset(),
   ].join("|");
-  // Simple hash
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
     const chr = raw.charCodeAt(i);
@@ -38,7 +39,6 @@ function getDeviceHash(): string {
   return deviceHash;
 }
 
-// Hash session ID for anonymity
 function hashSessionId(sessionId: string): string {
   let hash = 0;
   for (let i = 0; i < sessionId.length; i++) {
@@ -49,7 +49,6 @@ function hashSessionId(sessionId: string): string {
   return `sess_${Math.abs(hash).toString(36)}`;
 }
 
-// Detect language from settings
 function detectLanguage(): string {
   const settings = loadSettings();
   if (settings.panAfricanMode) return settings.panAfricanLanguage || "auto";
@@ -57,7 +56,6 @@ function detectLanguage(): string {
   return "auto";
 }
 
-// Detect region from timezone
 function detectRegion(): string {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -71,6 +69,7 @@ function detectRegion(): string {
 /**
  * Share an anonymous log to the community flywheel.
  * Only called when ubuntuDataSharing is enabled.
+ * Failed inserts are queued for offline retry.
  */
 export async function shareToFlywheel(
   sessionId: string,
@@ -80,29 +79,33 @@ export async function shareToFlywheel(
   const settings = loadSettings();
   if (!settings.ubuntuDataSharing) return;
 
-  try {
-    // Aggressively strip PII and raw data
-    const sanitized: Record<string, unknown> = {};
-    const ALLOWED_KEYS = [
-      "emotion", "intensity", "confidence", "latency",
-      "tool", "specialist", "has_notes_zu", "has_sovereignty_signal",
-      "rating", "type", "gesture_type", "language",
-      "sovereign_beta", "pan_african", "enabled",
-    ];
-    for (const key of ALLOWED_KEYS) {
-      if (key in payload) sanitized[key] = payload[key];
-    }
+  // Aggressively strip PII
+  const sanitized: Record<string, unknown> = {};
+  const ALLOWED_KEYS = [
+    "emotion", "intensity", "confidence", "latency",
+    "tool", "specialist", "has_notes_zu", "has_sovereignty_signal",
+    "rating", "type", "gesture_type", "language",
+    "sovereign_beta", "pan_african", "enabled",
+  ];
+  for (const key of ALLOWED_KEYS) {
+    if (key in payload) sanitized[key] = payload[key];
+  }
 
-    await (supabase as any).from("community_logs").insert({
-      session_hash: hashSessionId(sessionId),
-      event_type: eventType,
-      payload: sanitized,
-      language: detectLanguage(),
-      region: detectRegion(),
-      device_hash: getDeviceHash(),
-    });
+  const row = {
+    session_hash: hashSessionId(sessionId),
+    event_type: eventType,
+    payload: sanitized,
+    language: detectLanguage(),
+    region: detectRegion(),
+    device_hash: getDeviceHash(),
+  };
+
+  try {
+    const { error } = await (supabase as any).from("community_logs").insert(row);
+    if (error) throw error;
   } catch {
-    // Silent — community sharing should never block interaction
+    // Queue for offline retry
+    await enqueue("community_logs", row);
   }
 }
 
@@ -116,7 +119,7 @@ export interface CommunityStats {
   languageDistribution: { name: string; value: number }[];
   regionDistribution: { name: string; value: number }[];
   topEventTypes: { name: string; value: number }[];
-  recentActivity: number; // contributions in last 24h
+  recentActivity: number;
 }
 
 export async function fetchCommunityStats(): Promise<CommunityStats> {
@@ -148,11 +151,9 @@ export async function fetchCommunityStats(): Promise<CommunityStats> {
       created_at: string;
     }>;
 
-    // Unique counts
     const devices = new Set(logs.map((l) => l.device_hash));
     const sessions = new Set(logs.map((l) => l.session_hash));
 
-    // Language distribution
     const langCounts: Record<string, number> = {};
     logs.forEach((l) => {
       langCounts[l.language] = (langCounts[l.language] || 0) + 1;
@@ -161,7 +162,6 @@ export async function fetchCommunityStats(): Promise<CommunityStats> {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Region distribution
     const regionCounts: Record<string, number> = {};
     logs.forEach((l) => {
       regionCounts[l.region] = (regionCounts[l.region] || 0) + 1;
@@ -170,7 +170,6 @@ export async function fetchCommunityStats(): Promise<CommunityStats> {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Top event types
     const eventCounts: Record<string, number> = {};
     logs.forEach((l) => {
       eventCounts[l.event_type] = (eventCounts[l.event_type] || 0) + 1;
@@ -180,7 +179,6 @@ export async function fetchCommunityStats(): Promise<CommunityStats> {
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
 
-    // Recent activity (last 24h)
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const recentActivity = logs.filter(
       (l) => new Date(l.created_at).getTime() > dayAgo
