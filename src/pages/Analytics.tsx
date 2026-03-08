@@ -1,20 +1,19 @@
 /**
- * Sovereign Analytics Dashboard — Visualizes session_logs data.
- *
- * Shows model comparison (sovereign vs Gemini vs on-device),
- * latency distribution, language usage, and cultural richness metrics.
+ * Sovereign Analytics Dashboard — Visualizes session_logs data
+ * and Community Data Flywheel stats.
  */
 
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Activity, Globe, Zap, Brain, Cpu } from "lucide-react";
+import { ArrowLeft, Activity, Globe, Zap, Brain, Cpu, Users, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, LineChart, Line,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchCommunityStats, type CommunityStats } from "@/lib/community-flywheel";
 
 interface SessionLog {
   id: string;
