@@ -33,6 +33,8 @@ import {
   shadowLog,
 } from "@/lib/shadow-logger";
 
+import type { GestureData } from "./GestureOverlay";
+
 interface PointerData {
   x: number;
   y: number;
