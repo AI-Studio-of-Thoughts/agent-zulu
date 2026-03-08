@@ -144,6 +144,35 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   </div>
                 </div>
 
+                {/* Sovereign Training Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">Sovereign Training</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Contribute anonymized data
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => update({ sovereignTraining: !settings.sovereignTraining })}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${
+                      settings.sovereignTraining
+                        ? "bg-primary/40"
+                        : "bg-muted"
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+                        settings.sovereignTraining
+                          ? "left-5.5 bg-primary"
+                          : "left-0.5 bg-muted-foreground"
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 {/* Clear Data */}
                 <button
                   onClick={handleClearMemory}
