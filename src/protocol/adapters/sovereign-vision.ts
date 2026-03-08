@@ -74,6 +74,22 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
     this._status = "connected";
     this.context = [];
     this.emit({ type: "status", status: "connected" });
+
+    // Pre-load on-device model in background
+    if (!this._onDeviceInitialized) {
+      this._onDeviceInitialized = true;
+      const engine = getOnDeviceEngine();
+      engine.initialize().then((ok) => {
+        if (ok) {
+          console.log("[Sovereign] On-device model ready as offline fallback");
+          this.emit({
+            type: "proactive",
+            text: "📱 On-device vision loaded — offline mode available.",
+            confidence: 0.6,
+          });
+        }
+      }).catch(() => {});
+    }
   }
 
   async disconnect(): Promise<void> {
