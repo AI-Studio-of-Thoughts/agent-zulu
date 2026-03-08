@@ -186,6 +186,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
   panAfricanMode: false,
   panAfricanLanguage: "isizulu",
   ubuntuDataSharing: false,
+  reflectionMode: true,
 };
 
 export function loadSettings(): AgentSettings {
