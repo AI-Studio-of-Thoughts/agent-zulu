@@ -13,7 +13,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { formatMemoriesForPrompt } from "@/lib/agent-memory";
+import { formatMemoriesForPrompt, formatGoalsForPrompt, loadSettings } from "@/lib/agent-memory";
 import type {
   AgentBackendAdapter,
   AgentEventHandler,
