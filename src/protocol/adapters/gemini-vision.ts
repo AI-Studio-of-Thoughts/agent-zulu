@@ -202,10 +202,63 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
           }
         }
       }
+
+      // Fire-and-forget shadow comparison if enabled
+      if (currentSettings.shadowComparison) {
+        this.fireShadowComparison(base64, currentSettings.isiZuluImmersion, data);
+      }
     } catch (err) {
       console.error("[GeminiVision] Frame processing error:", err);
     } finally {
       this.processing = false;
+    }
+  }
+
+  /**
+   * Fire-and-forget: send same frame to shadow models for comparison logging.
+   * Never blocks the primary path. Failures are silently logged.
+   */
+  private async fireShadowComparison(
+    frameBase64: string,
+    isiZuluImmersion: boolean,
+    primaryResult: any
+  ): Promise<void> {
+    try {
+      const { data, error } = await supabase.functions.invoke("vision-shadow", {
+        body: {
+          frame_base64: frameBase64,
+          isizulu_immersion: isiZuluImmersion,
+          primary_result: {
+            description: primaryResult.description,
+            emotion: primaryResult.emotion,
+            intensity: primaryResult.intensity,
+          },
+        },
+      });
+
+      if (error) {
+        console.debug("[Shadow] Comparison failed:", error);
+        return;
+      }
+
+      // Log comparison to session_logs via shadow logger
+      shadowLog("shadow_comparison", {
+        primary_model: data.primary_model,
+        primary_description: data.primary_result?.description,
+        shadow_results: data.shadow_results?.map((r: any) => ({
+          model: r.model,
+          latency: r.latency,
+          description: r.result?.description,
+          emotion: r.result?.emotion,
+          isizulu_quality: r.result?.isizulu_quality,
+          cultural_depth: r.result?.cultural_depth,
+          error: r.error,
+        })),
+      });
+
+      console.debug("[Shadow] Comparison logged:", data.shadow_results?.length, "models");
+    } catch (err) {
+      console.debug("[Shadow] Fire-and-forget error:", err);
     }
   }
 
