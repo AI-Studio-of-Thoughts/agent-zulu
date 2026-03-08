@@ -123,44 +123,77 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
       let data: any = null;
       let usedSovereign = false;
 
-      // Try sovereign endpoint first with timeout
-      try {
-        const sovereignPromise = supabase.functions.invoke("sovereign-heritage", {
-          body: {
-            frame_base64: base64,
-            context: this.context,
-            memory_context: memoryContext,
-            goals_context: goalsContext,
-          },
-        });
+      // Try sovereign endpoint first (unless disabled by latency guard)
+      if (!this._sovereignDisabledForSession) {
+        try {
+          const sovereignPromise = supabase.functions.invoke("sovereign-heritage", {
+            body: {
+              frame_base64: base64,
+              context: this.context,
+              memory_context: memoryContext,
+              goals_context: goalsContext,
+            },
+          });
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Sovereign timeout")), this.sovereignTimeoutMs)
-        );
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Sovereign timeout")), this.sovereignTimeoutMs)
+          );
 
-        const result = await Promise.race([sovereignPromise, timeoutPromise]);
-        const sovereignLatency = Date.now() - startTime;
+          const result = await Promise.race([sovereignPromise, timeoutPromise]);
+          const sovereignLatency = Date.now() - startTime;
 
-        if (result.error) {
-          throw new Error(result.error.message || "Sovereign error");
+          if (result.error) {
+            throw new Error(result.error.message || "Sovereign error");
+          }
+
+          data = result.data;
+          usedSovereign = true;
+
+          // Track latency for guard
+          this.recentLatencies.push(sovereignLatency);
+          if (this.recentLatencies.length > 3) this.recentLatencies.shift();
+
+          // Latency guard: if last 3 calls all >8s, disable for session
+          if (
+            this.recentLatencies.length >= 3 &&
+            this.recentLatencies.every((l) => l > 8000)
+          ) {
+            this._sovereignDisabledForSession = true;
+            console.warn("[Sovereign] Latency guard triggered — pausing for session");
+            this.emit({
+              type: "proactive",
+              text: "Sovereign mode paused — network slow. Falling back to standard engine.",
+              confidence: 1.0,
+            });
+            shadowLog("sovereign_latency_guard", {
+              latencies: [...this.recentLatencies],
+            });
+          }
+
+          // Log sovereign success
+          shadowLog("sovereign_inference", {
+            source: "sovereign-heritage",
+            latency: sovereignLatency,
+            emotion: data?.emotion,
+            has_notes_zu: !!data?.notes_zu,
+            has_sovereignty_signal: !!data?.sovereignty_signal,
+          });
+
+          console.debug(`[Sovereign] Heritage response in ${sovereignLatency}ms`);
+        } catch (sovereignErr) {
+          // Fallback to standard Gemini
+          console.warn("[Sovereign] Falling back to Gemini:", (sovereignErr as Error).message);
+
+          const fallbackResult = await this.fallbackToGemini(base64, memoryContext, goalsContext, startTime);
+          if (!fallbackResult) return;
+          data = fallbackResult;
         }
-
-        data = result.data;
-        usedSovereign = true;
-
-        // Log sovereign success
-        shadowLog("sovereign_inference", {
-          source: "sovereign-heritage",
-          latency: sovereignLatency,
-          emotion: data?.emotion,
-          has_notes_zu: !!data?.notes_zu,
-          has_sovereignty_signal: !!data?.sovereignty_signal,
-        });
-
-        console.debug(`[Sovereign] Heritage response in ${sovereignLatency}ms`);
-      } catch (sovereignErr) {
-        // Fallback to standard Gemini
-        console.warn("[Sovereign] Falling back to Gemini:", (sovereignErr as Error).message);
+      } else {
+        // Sovereign disabled — go straight to Gemini
+        const fallbackResult = await this.fallbackToGemini(base64, memoryContext, goalsContext, startTime);
+        if (!fallbackResult) return;
+        data = fallbackResult;
+      }
 
         const { data: geminiData, error: geminiError } = await supabase.functions.invoke("vision-reasoning", {
           body: {
