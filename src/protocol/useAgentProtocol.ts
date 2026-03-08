@@ -18,6 +18,7 @@ interface UseAgentProtocolReturn {
   status: ConnectionStatus;
   voiceState: VoiceState;
   avatarState: AvatarState;
+  vision: VisionCapabilities;
   connect: (credentials: Record<string, unknown>, mediaStream?: MediaStream) => Promise<void>;
   disconnect: () => Promise<void>;
   setMicMuted: (muted: boolean) => void;
