@@ -121,7 +121,13 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
       const goalsContext = currentSettings.memoryEnabled ? formatGoalsForPrompt() : "";
 
       const { data, error } = await supabase.functions.invoke("vision-reasoning", {
-        body: { frame_base64: base64, context: this.context, memory_context: memoryContext, goals_context: goalsContext },
+        body: {
+          frame_base64: base64,
+          context: this.context,
+          memory_context: memoryContext,
+          goals_context: goalsContext,
+          isizulu_immersion: currentSettings.isiZuluImmersion,
+        },
       });
 
       if (error) {
