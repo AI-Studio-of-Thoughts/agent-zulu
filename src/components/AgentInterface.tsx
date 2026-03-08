@@ -10,7 +10,7 @@ import AlertOverlay from "./AlertOverlay";
 import SettingsPanel from "./SettingsPanel";
 import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
-import { useAgentProtocol, HybridAdapter } from "@/protocol";
+import { useAgentProtocol, HybridAdapter, SovereignBetaAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
 import {
   saveMemory,
