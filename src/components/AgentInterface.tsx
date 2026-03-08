@@ -9,13 +9,15 @@ import VisionLoop from "./VisionLoop";
 import type { VisionLoopHandle } from "./VisionLoop";
 import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
-import { saveMemory } from "@/lib/agent-memory";
+import { saveMemory, searchMemories } from "@/lib/agent-memory";
 
 interface PointerData {
   x: number;
   y: number;
   description: string;
 }
+
+const PROACTIVE_CONFIDENCE_THRESHOLD = 0.7;
 
 const AgentInterface = () => {
   const adapter = useMemo(() => new HybridAdapter(), []);
@@ -33,8 +35,13 @@ const AgentInterface = () => {
   // Tool overlay state
   const [pointer, setPointer] = useState<PointerData | null>(null);
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const zoomTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Proactive speech queue
+  const [proactiveText, setProactiveText] = useState<string | null>(null);
 
   const isConnected = agent.status === "connected";
   const isSpeaking = agent.voiceState.isSpeaking;
@@ -69,8 +76,42 @@ const AgentInterface = () => {
         saveMemory(name, description);
         return `Remembered "${name}" for future sessions.`;
       },
+      search_knowledge_base: async (params) => {
+        const query = String(params.query ?? "");
+        const matches = searchMemories(query);
+        if (matches.length === 0) {
+          return "No matching memories found.";
+        }
+        return JSON.stringify(
+          matches.map((m) => ({ name: m.name, description: m.description }))
+        );
+      },
+      zoom_camera: async (params) => {
+        const factor = Math.max(1, Math.min(3, Number(params.factor ?? 1.5)));
+        const duration = Math.min(15000, Number(params.duration_ms ?? 6000));
+        setZoomLevel(factor);
+        clearTimeout(zoomTimerRef.current);
+        zoomTimerRef.current = setTimeout(() => setZoomLevel(1), duration);
+        return `Zoomed to ${factor}x for ${duration}ms.`;
+      },
     });
   }, [agent]);
+
+  // Listen for proactive events from the adapter
+  useEffect(() => {
+    const unsub = adapter.on((event) => {
+      if (
+        event.type === "proactive" &&
+        event.confidence >= PROACTIVE_CONFIDENCE_THRESHOLD &&
+        !isSpeaking
+      ) {
+        setProactiveText(event.text);
+        // Auto-clear after display
+        setTimeout(() => setProactiveText(null), 6000);
+      }
+    });
+    return unsub;
+  }, [adapter, isSpeaking]);
 
   const dismissFrozen = useCallback(() => {
     setFrozenFrame(null);
@@ -123,6 +164,8 @@ const AgentInterface = () => {
     setShowStartScreen(true);
     setPointer(null);
     setFrozenFrame(null);
+    setZoomLevel(1);
+    setProactiveText(null);
   }, [agent, mediaStream]);
 
   const toggleMic = useCallback(() => {
@@ -234,12 +277,33 @@ const AgentInterface = () => {
               />
             </div>
 
+            {/* Proactive suggestion bubble */}
+            <AnimatePresence>
+              {proactiveText && (
+                <motion.div
+                  className="absolute bottom-40 left-1/2 -translate-x-1/2 z-30 max-w-xs"
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                >
+                  <div className="glass-surface rounded-lg px-4 py-2.5 border border-primary/30">
+                    <p className="font-mono text-xs text-foreground/80 leading-relaxed">
+                      {proactiveText}
+                    </p>
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary/20 rotate-45 border-r border-b border-primary/30" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <CameraPreview
               stream={mediaStream}
               isActive={cameraActive}
               pointer={pointer}
               frozenFrame={frozenFrame}
               onDismissFrozen={dismissFrozen}
+              zoomLevel={zoomLevel}
             />
             <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />

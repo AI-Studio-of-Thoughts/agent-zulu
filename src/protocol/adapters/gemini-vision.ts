@@ -153,6 +153,14 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
         }
       }
 
+      // Handle proactive suggestion
+      if (data.proactive_suggestion) {
+        const { text, confidence } = data.proactive_suggestion;
+        if (text && typeof confidence === "number") {
+          this.emit({ type: "proactive", text, confidence });
+        }
+      }
+
       // Process any tool calls from Gemini
       if (data.tool_calls && Array.isArray(data.tool_calls)) {
         for (const tc of data.tool_calls) {

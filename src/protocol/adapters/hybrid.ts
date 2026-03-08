@@ -103,21 +103,24 @@ export class HybridAdapter implements AgentBackendAdapter {
     this.visionUnsub = this.vision_adapter.on((event) => {
       switch (event.type) {
         case "avatar_state":
-          // Store vision avatar; use it when voice is idle
           this._visionAvatarState = event.state;
           this.resolveAvatarState();
           break;
         case "transcript":
-          // Vision observations go to transcript
           this.emit(event);
           break;
         case "tool_call":
           this.emit(event);
           break;
+        case "proactive":
+          // Forward proactive suggestions — only when voice is idle
+          if (!this._voiceState.isSpeaking) {
+            this.emit(event);
+          }
+          break;
         case "error":
           this.emit(event);
           break;
-        // Ignore vision status events — voice drives status
       }
     });
 

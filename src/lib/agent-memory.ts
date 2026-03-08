@@ -48,6 +48,22 @@ export function clearMemories(): void {
 }
 
 /**
+ * Fuzzy search memories by keyword matching on name + description.
+ */
+export function searchMemories(query: string): MemoryEntry[] {
+  const memories = loadMemories();
+  if (!query.trim()) return memories.slice(-5);
+
+  const terms = query.toLowerCase().split(/\s+/);
+  return memories
+    .filter((m) => {
+      const text = `${m.name} ${m.description}`.toLowerCase();
+      return terms.some((t) => text.includes(t));
+    })
+    .slice(-5);
+}
+
+/**
  * Format memories as a context string for injection into the system prompt.
  */
 export function formatMemoriesForPrompt(): string {

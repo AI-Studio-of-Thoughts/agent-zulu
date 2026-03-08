@@ -15,6 +15,7 @@ interface CameraPreviewProps {
   pointer?: PointerData | null;
   frozenFrame?: string | null;
   onDismissFrozen?: () => void;
+  zoomLevel?: number;
 }
 
 const CameraPreview = ({
@@ -23,6 +24,7 @@ const CameraPreview = ({
   pointer = null,
   frozenFrame = null,
   onDismissFrozen,
+  zoomLevel = 1,
 }: CameraPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -40,13 +42,19 @@ const CameraPreview = ({
       transition={{ delay: 0.8, duration: 0.5 }}
     >
       {isActive && stream ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover transform -scale-x-100"
-        />
+        <motion.div
+          className="w-full h-full"
+          animate={{ scale: zoomLevel }}
+          transition={{ type: "spring", stiffness: 200, damping: 20 }}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover transform -scale-x-100"
+          />
+        </motion.div>
       ) : (
         <div className="w-full h-full flex items-center justify-center">
           <VideoOff className="w-6 h-6 text-muted-foreground" />
@@ -59,6 +67,13 @@ const CameraPreview = ({
         frozenFrame={frozenFrame}
         onDismissFrozen={onDismissFrozen}
       />
+
+      {/* Zoom indicator */}
+      {zoomLevel > 1 && (
+        <div className="absolute top-1 left-1 font-mono text-[8px] tracking-wider text-primary bg-background/60 rounded px-1 py-0.5 z-20">
+          {zoomLevel.toFixed(1)}×
+        </div>
+      )}
 
       {/* Border glow */}
       <div className="absolute inset-0 rounded-lg border border-primary/20 pointer-events-none" />
