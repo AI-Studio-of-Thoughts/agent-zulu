@@ -78,6 +78,7 @@ const AgentInterface = () => {
   const [activeAlert, setActiveAlert] = useState<AlertData | null>(null);
   const [goalReminder, setGoalReminder] = useState<string | null>(null);
   const [activeReflection, setActiveReflection] = useState<ReflectionEvent | null>(null);
+  const [isReflecting, setIsReflecting] = useState(false);
   const alertTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
   const reflectionTimerRef = useRef<ReturnType<typeof setInterval>>();
