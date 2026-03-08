@@ -53,6 +53,7 @@ const AgentInterface = () => {
   // Tool overlay state
   const [pointer, setPointer] = useState<PointerData | null>(null);
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  const [localMode, setLocalMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
