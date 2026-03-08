@@ -458,6 +458,11 @@ const AgentInterface = () => {
     setProactiveText(null);
     setActiveAlert(null);
     setGoalReminder(null);
+    setActiveReflection(null);
+    transcriptsRef.current = [];
+    visionDescriptionsRef.current = [];
+    gesturesRef.current = [];
+    clearInterval(reflectionTimerRef.current);
   }, [agent, mediaStream]);
 
   const toggleMic = useCallback(() => {
