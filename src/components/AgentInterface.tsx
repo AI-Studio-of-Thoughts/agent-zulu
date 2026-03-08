@@ -10,6 +10,7 @@ import VisionLoop from "./VisionLoop";
 import AlertOverlay from "./AlertOverlay";
 import SettingsPanel from "./SettingsPanel";
 import ReflectionOverlay from "./ReflectionOverlay";
+import ThinkingBubble from "./ThinkingBubble";
 import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
 import type { ReflectionEvent } from "@/protocol/types";
