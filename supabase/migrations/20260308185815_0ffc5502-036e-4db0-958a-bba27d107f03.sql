@@ -1,0 +1,1 @@
+CREATE POLICY "Allow anonymous selects" ON public.session_logs FOR SELECT USING (true);
