@@ -46,7 +46,7 @@ serve(async (req) => {
   }
 
   try {
-    const { frame_base64, context } = await req.json();
+    const { frame_base64, context, memory_context } = await req.json();
 
     if (!frame_base64) {
       return new Response(
