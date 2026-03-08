@@ -165,6 +165,7 @@ serve(async (req) => {
                               milestone: { type: "string" },
                               specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
                               task: { type: "string", description: "Task to delegate to specialist." },
+                              subject: { type: "string", description: "Subject for describe_in_isizulu." },
                             },
                           },
                         },
