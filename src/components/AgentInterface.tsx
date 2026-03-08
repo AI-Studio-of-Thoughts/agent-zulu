@@ -312,22 +312,29 @@ const AgentInterface = () => {
   const startSession = useCallback(async () => {
     setIsConnecting(true);
     try {
+      // CRITICAL: getUserMedia must be called first, directly in click handler
+      let stream: MediaStream | null = null;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        setMediaStream(stream);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         setCameraActive(true);
       } catch {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          setMediaStream(stream);
-        } catch {
-          console.warn("No media devices available — proceeding without mic/camera");
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (micErr) {
+          toast.error("Microphone required", {
+            description: "Agent Zulu needs microphone access to start a voice session. Please connect a microphone and allow access.",
+          });
+          setIsConnecting(false);
+          return;
         }
       }
+      setMediaStream(stream);
       setMicActive(true);
 
       const { data, error } = await supabase.functions.invoke("elevenlabs-conversation-token");
       if (error || !data?.signed_url) {
+        stream?.getTracks().forEach((t) => t.stop());
+        setMediaStream(null);
         throw new Error(error?.message || "No signed URL received");
       }
 
