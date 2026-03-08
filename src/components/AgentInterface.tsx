@@ -9,6 +9,7 @@ import VisionLoop from "./VisionLoop";
 import type { VisionLoopHandle } from "./VisionLoop";
 import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
+import { saveMemory } from "@/lib/agent-memory";
 
 interface PointerData {
   x: number;
