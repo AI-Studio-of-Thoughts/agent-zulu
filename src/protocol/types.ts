@@ -90,6 +90,36 @@ export interface GestureDetected {
   confidence: number;
 }
 
+// ── Reflection ──────────────────────────────────────────────
+
+export interface ReflectionOverlayItem {
+  type: "proverb" | "cultural_insight" | "goal_update" | "community_echo";
+  /** Normalized 0-1 coords for AR placement (optional) */
+  x?: number;
+  y?: number;
+  /** Primary label in African language */
+  label: string;
+  /** English gloss */
+  label_en?: string;
+}
+
+export interface ReflectionEvent {
+  /** isiZulu-first summary of the session's cultural arc */
+  summary: string;
+  /** English summary */
+  summary_en?: string;
+  /** Relevant proverb (isaga/methali/òwe) */
+  proverb: string;
+  /** Goal update suggestion */
+  goal_update?: string;
+  /** AR overlay items to render on camera feed */
+  overlays: ReflectionOverlayItem[];
+  /** Community echo from ubuntu flywheel */
+  community_echo?: string;
+  /** Source identifier */
+  source?: string;
+}
+
 export type AgentEvent =
   | { type: "voice_state"; state: VoiceState }
   | { type: "avatar_state"; state: AvatarState }
@@ -97,6 +127,7 @@ export type AgentEvent =
   | { type: "tool_call"; call: ToolCall }
   | { type: "proactive"; text: string; confidence: number }
   | { type: "gesture"; gesture: GestureDetected }
+  | { type: "reflection"; reflection: ReflectionEvent }
   | { type: "error"; error: string }
   | { type: "status"; status: ConnectionStatus };
 
