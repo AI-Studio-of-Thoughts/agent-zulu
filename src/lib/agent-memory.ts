@@ -184,6 +184,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
   sovereignBeta: false,
   panAfricanMode: false,
   panAfricanLanguage: "isizulu",
+  ubuntuDataSharing: false,
 };
 
 export function loadSettings(): AgentSettings {
