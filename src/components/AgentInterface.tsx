@@ -128,10 +128,10 @@ const AgentInterface = () => {
           : "medium") as AlertData["urgency"];
         setActiveAlert({ message, urgency });
         clearTimeout(alertTimerRef.current);
-        // High urgency persists until dismissed; others auto-dismiss
         if (urgency !== "high") {
           alertTimerRef.current = setTimeout(() => setActiveAlert(null), 8000);
         }
+        logAlertTriggered(message, urgency);
         return `Alert shown: [${urgency}] ${message}`;
       },
       set_goal: async (params) => {
