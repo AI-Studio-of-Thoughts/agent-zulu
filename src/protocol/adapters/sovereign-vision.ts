@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { formatMemoriesForPrompt, formatGoalsForPrompt, loadSettings } from "@/lib/agent-memory";
 import { shadowLog } from "@/lib/shadow-logger";
+import { getOnDeviceEngine } from "@/lib/on-device-vision";
 import type {
   AgentBackendAdapter,
   AgentEventHandler,
