@@ -1,73 +1,206 @@
-# Welcome to your Lovable project
+# Agent Zulu — Architecture & Implementation Guide
 
-## Project info
+## Overview
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Agent Zulu is a real-time voice conversational AI interface built with React + TypeScript. It connects to an **ElevenLabs Conversational AI Agent** via WebSocket, enabling full-duplex voice conversations with an AI agent directly in the browser.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Vite |
+| Styling | Tailwind CSS, Framer Motion |
+| UI Components | shadcn/ui (Radix primitives) |
+| Voice Engine | ElevenLabs Conversational AI SDK (`@elevenlabs/react`) |
+| Backend | Lovable Cloud (backend function + secrets) |
+| Fonts | Orbitron (display), Inter (body), JetBrains Mono (monospace) |
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## Architecture Diagram
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```text
+┌─────────────────────────────────────┐
+│           Browser (React)           │
+│                                     │
+│  AgentInterface                     │
+│  ├── useConversation() hook         │
+│  │   └── WebSocket ↔ ElevenLabs    │
+│  ├── AvatarDisplay (visual state)   │
+│  ├── MicIndicator (audio levels)    │
+│  ├── CameraPreview (video feed)     │
+│  └── ConnectionStatus (timer/wifi)  │
+└──────────────┬──────────────────────┘
+               │ fetch signed URL
+               ▼
+┌──────────────────────────────────────┐
+│  Backend Function                    │
+│  elevenlabs-conversation-token       │
+│  └── GET /v1/convai/conversation/    │
+│      get-signed-url?agent_id=...     │
+│      (uses ELEVENLABS_API_KEY)       │
+└──────────────┬───────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────┐
+│  ElevenLabs Conversational AI API    │
+│  Agent ID: agent_2501kk6wt2ene...   │
+└──────────────────────────────────────┘
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## What Was Implemented
 
-**Use GitHub Codespaces**
+### 1) ElevenLabs SDK integration
+- Added dependency: `@elevenlabs/react`
+- `AgentInterface.tsx` now uses `useConversation()` for real-time conversational voice.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### 2) Real session lifecycle in UI
+- Start button requests permissions, gets signed URL, starts session.
+- End button terminates session and stops local media tracks.
+- Session state now comes from SDK status (`connected`/`disconnected`) and speaking state.
 
-## What technologies are used for this project?
+### 3) Secure backend function for signed URL
+- Added: `supabase/functions/elevenlabs-conversation-token/index.ts`
+- Function reads `ELEVENLABS_API_KEY` secret and requests signed URL from ElevenLabs for:
+  - `agent_2501kk6wt2eneyysjqpsh1jyff15`
+- Frontend calls this function before starting session.
 
-This project is built with:
+### 4) Existing UI components retained and wired to real state
+- `AvatarDisplay`: reacts to `isSpeaking` / `isListening` / `isConnected`
+- `ConnectionStatus`: shows connection state + session timer
+- `MicIndicator`: local mic toggle and level bars
+- `CameraPreview`: local PiP camera feed if video permission granted
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+---
 
-## How can I deploy this project?
+## Key Components
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### `src/components/AgentInterface.tsx`
+**Main orchestrator.** Handles:
+1. Permission request (`getUserMedia`)
+2. Backend signed URL request
+3. `conversation.startSession({ signedUrl })`
+4. Session end cleanup
+5. Feeding speaking/listening/connection state to UI
 
-## Can I connect a custom domain to my Lovable project?
+**Important state:**
+- `conversation.status` — `"connected"` | `"disconnected"`
+- `conversation.isSpeaking` — used for speaking animations
+- `isListening` — derived as connected + not speaking
 
-Yes, you can!
+### `src/components/AvatarDisplay.tsx`
+- Animated agent visual
+- Pulsing glow while connected
+- Speaking/listening status labels
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### `src/components/MicIndicator.tsx`
+- Mic mute/unmute toggle
+- Realtime bar visualization using `AudioContext` + `AnalyserNode`
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### `src/components/CameraPreview.tsx`
+- Shows user camera stream if available
+- Fallback icon when camera inactive/unavailable
+
+### `src/components/ConnectionStatus.tsx`
+- Connected/disconnected badge
+- Live session timer (MM:SS)
+
+---
+
+## Backend Function
+
+### `supabase/functions/elevenlabs-conversation-token/index.ts`
+
+**Purpose:** Keep API keys secure and return a signed URL to the frontend.
+
+**Flow:**
+1. Request arrives from app
+2. Read `ELEVENLABS_API_KEY` from secrets
+3. Call ElevenLabs:
+   - `GET /v1/convai/conversation/get-signed-url?agent_id={AGENT_ID}`
+4. Return `{ signed_url }`
+
+**Secret used:**
+- `ELEVENLABS_API_KEY` (already configured)
+
+---
+
+## Session Flow
+
+```text
+[Start Screen]
+    │
+    ▼ User taps power
+[Request mic/camera permissions]
+    │
+    ▼
+[Call backend function for signed URL]
+    │
+    ▼
+[conversation.startSession({ signedUrl })]
+    │
+    ▼
+[Live voice conversation]
+    │
+    ▼ User taps end
+[conversation.endSession + stop media tracks]
+    │
+    ▼
+[Return to Start Screen]
+```
+
+---
+
+## Design System Notes
+
+Theme is token-driven from `src/index.css` (HSL semantic tokens), including:
+- `--background`, `--foreground`
+- `--primary`, `--accent`
+- `--muted-foreground`, `--destructive`
+
+Utility classes used heavily:
+- `.glass-surface`
+- `.glow-ring`, `.glow-ring-lg`
+- `.text-glow`
+
+Typography:
+- Display: Orbitron
+- Body: Inter
+- Mono: JetBrains Mono
+
+---
+
+## Files Added/Changed
+
+### Added
+- `supabase/functions/elevenlabs-conversation-token/index.ts`
+- `ARCHITECTURE.md` (mirror handoff doc)
+
+### Changed
+- `src/components/AgentInterface.tsx`
+- `package.json` (dependency added)
+- `README.md` (this handoff documentation)
+
+---
+
+## Notes for Co-dev
+
+1. **Agent behavior is configured in ElevenLabs dashboard**, not in app code.
+2. Current agent wired in backend function:
+   - `agent_2501kk6wt2eneyysjqpsh1jyff15`
+3. If changing to another agent ID, update backend function constant.
+4. API key remains server-side only (good security posture).
+
+---
+
+## Suggested Next Iterations
+
+- Add live transcript panel (user + agent utterances)
+- Add output volume slider
+- Add conversation history persistence
+- Add multi-agent picker
+- Add robust error UX (toasts, retry states, permission guidance)
