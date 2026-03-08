@@ -1,1 +1,7 @@
 project_id = "utsnokelncheyfbhmsrs"
+
+[functions.elevenlabs-conversation-token]
+verify_jwt = false
+
+[functions.vision-reasoning]
+verify_jwt = false
