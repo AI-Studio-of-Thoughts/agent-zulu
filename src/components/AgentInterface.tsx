@@ -9,8 +9,10 @@ import ConnectionStatus from "./ConnectionStatus";
 import VisionLoop from "./VisionLoop";
 import AlertOverlay from "./AlertOverlay";
 import SettingsPanel from "./SettingsPanel";
+import ReflectionOverlay from "./ReflectionOverlay";
 import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
+import type { ReflectionEvent } from "@/protocol/types";
 import { useAgentProtocol, HybridAdapter, SovereignBetaAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
 import {
