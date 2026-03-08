@@ -23,6 +23,7 @@ export interface GoalEntry {
 export interface AgentSettings {
   memoryEnabled: boolean;
   proactivityLevel: "off" | "low" | "medium" | "high";
+  sovereignTraining: boolean;
 }
 
 const STORAGE_KEY = "agent-zulu-memory";
@@ -165,6 +166,7 @@ export function formatGoalsForPrompt(): string {
 const DEFAULT_SETTINGS: AgentSettings = {
   memoryEnabled: true,
   proactivityLevel: "medium",
+  sovereignTraining: false,
 };
 
 export function loadSettings(): AgentSettings {

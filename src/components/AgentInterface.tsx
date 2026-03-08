@@ -22,6 +22,14 @@ import {
   getProactiveThreshold,
   type AgentSettings,
 } from "@/lib/agent-memory";
+import {
+  startShadowSession,
+  endShadowSession,
+  logToolCall,
+  logSpecialistDelegation,
+  logProactiveTrigger,
+  logAlertTriggered,
+} from "@/lib/shadow-logger";
 
 interface PointerData {
   x: number;
@@ -120,10 +128,10 @@ const AgentInterface = () => {
           : "medium") as AlertData["urgency"];
         setActiveAlert({ message, urgency });
         clearTimeout(alertTimerRef.current);
-        // High urgency persists until dismissed; others auto-dismiss
         if (urgency !== "high") {
           alertTimerRef.current = setTimeout(() => setActiveAlert(null), 8000);
         }
+        logAlertTriggered(message, urgency);
         return `Alert shown: [${urgency}] ${message}`;
       },
       set_goal: async (params) => {
@@ -151,6 +159,21 @@ const AgentInterface = () => {
           }))
         );
       },
+      delegate_to_specialist: async (params) => {
+        const specialist = String(params.specialist ?? "general");
+        const task = String(params.task ?? "");
+        try {
+          const { data, error } = await supabase.functions.invoke("specialist-delegation", {
+            body: { specialist, task, context: [] },
+          });
+          if (error) return `Specialist error: ${error.message}`;
+          const result = data?.analysis ?? "No analysis available.";
+          logSpecialistDelegation(specialist, task, result);
+          return `[${specialist}]: ${result}${data?.isizulu_note ? ` (${data.isizulu_note})` : ""}`;
+        } catch (err) {
+          return `Specialist delegation failed.`;
+        }
+      },
     });
   }, [agent, settings.memoryEnabled]);
 
@@ -166,6 +189,7 @@ const AgentInterface = () => {
         if (now - lastProactiveRef.current < PROACTIVE_MIN_INTERVAL) return;
         lastProactiveRef.current = now;
         setProactiveText(event.text);
+        logProactiveTrigger(event.text, event.confidence);
         setTimeout(() => setProactiveText(null), 6000);
       }
     });
@@ -212,6 +236,7 @@ const AgentInterface = () => {
       }
 
       await agent.connect({ signed_url: data.signed_url });
+      startShadowSession();
       setShowStartScreen(false);
     } catch (err) {
       console.error("Failed to start session:", err);
@@ -222,6 +247,7 @@ const AgentInterface = () => {
 
   const endSession = useCallback(async () => {
     await agent.disconnect();
+    endShadowSession();
     mediaStream?.getTracks().forEach((t) => t.stop());
     setMediaStream(null);
     setCameraActive(false);
