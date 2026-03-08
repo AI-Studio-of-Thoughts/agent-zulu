@@ -6,7 +6,7 @@ import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
 import ConnectionStatus from "./ConnectionStatus";
 import VisionLoop from "./VisionLoop";
-import { useAgentProtocol, ElevenLabsAdapter } from "@/protocol";
+import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
 
 const AgentInterface = () => {
