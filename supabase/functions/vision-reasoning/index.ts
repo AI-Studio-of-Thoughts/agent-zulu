@@ -43,6 +43,9 @@ ACTION TOOLS (via tool_calls array):
 - set_goal: Track a user objective. Name, description, optional milestones array.
 - complete_milestone: Mark a goal milestone as done. goal_name + milestone.
 - search_goals: Check active goals for proactive check-ins.
+- delegate_to_specialist: Delegate complex analysis to a specialist sub-agent. Specialists: "cultural" (isiZulu/heritage), "safety" (risk assessment), "memory" (recall/archival), "general" (fallback). Use when a task requires deep expertise beyond your general capabilities.
+
+MULTI-AGENT DELEGATION: For culturally nuanced scenes, delegate to "cultural" specialist. For potential safety concerns, delegate to "safety" specialist. For complex memory operations, delegate to "memory" specialist. The specialist's analysis will be returned to you for integration into your response.
 
 Use tools sparingly and naturally. Prioritize cultural relevance and ubuntu-style helpfulness.`;
 

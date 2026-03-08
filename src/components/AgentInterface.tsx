@@ -247,6 +247,7 @@ const AgentInterface = () => {
 
   const endSession = useCallback(async () => {
     await agent.disconnect();
+    endShadowSession();
     mediaStream?.getTracks().forEach((t) => t.stop());
     setMediaStream(null);
     setCameraActive(false);
