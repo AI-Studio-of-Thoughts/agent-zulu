@@ -1,21 +1,37 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Power } from "lucide-react";
 import AvatarDisplay from "./AvatarDisplay";
 import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
 import ConnectionStatus from "./ConnectionStatus";
+import { supabase } from "@/integrations/supabase/client";
 
 const AgentInterface = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [micActive, setMicActive] = useState(true);
   const [cameraActive, setCameraActive] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [sessionDuration, setSessionDuration] = useState(0);
   const [showStartScreen, setShowStartScreen] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+
+  const conversation = useConversation({
+    onConnect: () => {
+      console.log("Connected to ElevenLabs agent");
+    },
+    onDisconnect: () => {
+      console.log("Disconnected from ElevenLabs agent");
+    },
+    onError: (error) => {
+      console.error("Conversation error:", error);
+    },
+  });
+
+  const isConnected = conversation.status === "connected";
+  const isSpeaking = conversation.isSpeaking;
+  const isListening = isConnected && !isSpeaking;
 
   // Session timer
   useEffect(() => {
@@ -28,53 +44,50 @@ const AgentInterface = () => {
     return () => clearInterval(timerRef.current);
   }, [isConnected]);
 
-  // Simulate speaking pattern when connected
-  useEffect(() => {
-    if (!isConnected) return;
-    const interval = setInterval(() => {
-      setIsSpeaking(true);
-      setTimeout(() => {
-        setIsSpeaking(false);
-        setIsListening(true);
-        setTimeout(() => setIsListening(false), 3000);
-      }, 2000 + Math.random() * 3000);
-    }, 8000);
-    return () => clearInterval(interval);
-  }, [isConnected]);
-
   const startSession = useCallback(async () => {
+    setIsConnecting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      setMediaStream(stream);
-      setCameraActive(true);
-      setMicActive(true);
-      setIsConnected(true);
-      setIsListening(true);
-      setShowStartScreen(false);
-    } catch {
-      // Try audio only
+      // Request mic permission
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Try to get camera too
       try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        setMediaStream(stream);
+        setCameraActive(true);
+      } catch {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setMediaStream(stream);
-        setMicActive(true);
-        setIsConnected(true);
-        setIsListening(true);
-        setShowStartScreen(false);
-      } catch {
-        console.error("Could not access media devices");
       }
-    }
-  }, []);
+      setMicActive(true);
 
-  const endSession = useCallback(() => {
+      // Get signed URL from edge function
+      const { data, error } = await supabase.functions.invoke("elevenlabs-conversation-token");
+
+      if (error || !data?.signed_url) {
+        throw new Error(error?.message || "No signed URL received");
+      }
+
+      // Start ElevenLabs conversation
+      await conversation.startSession({
+        signedUrl: data.signed_url,
+      });
+
+      setShowStartScreen(false);
+    } catch (err) {
+      console.error("Failed to start session:", err);
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [conversation]);
+
+  const endSession = useCallback(async () => {
+    await conversation.endSession();
     mediaStream?.getTracks().forEach((t) => t.stop());
     setMediaStream(null);
-    setIsConnected(false);
-    setIsListening(false);
-    setIsSpeaking(false);
     setCameraActive(false);
     setShowStartScreen(true);
-  }, [mediaStream]);
+  }, [conversation, mediaStream]);
 
   const toggleMic = useCallback(() => {
     if (mediaStream) {
@@ -125,7 +138,8 @@ const AgentInterface = () => {
 
             <motion.button
               onClick={startSession}
-              className="relative group rounded-full w-20 h-20 flex items-center justify-center bg-primary/10 border border-primary/40 text-primary transition-colors hover:bg-primary/20"
+              disabled={isConnecting}
+              className="relative group rounded-full w-20 h-20 flex items-center justify-center bg-primary/10 border border-primary/40 text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6, type: "spring" }}
@@ -147,7 +161,7 @@ const AgentInterface = () => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
             >
-              Tap to connect
+              {isConnecting ? "Connecting…" : "Tap to connect"}
             </motion.span>
           </motion.div>
         ) : (
