@@ -236,6 +236,7 @@ const AgentInterface = () => {
       }
 
       await agent.connect({ signed_url: data.signed_url });
+      startShadowSession();
       setShowStartScreen(false);
     } catch (err) {
       console.error("Failed to start session:", err);
