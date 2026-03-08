@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, X, Brain, MessageSquare, Trash2 } from "lucide-react";
+import { Settings, X, Brain, MessageSquare, Trash2, Database } from "lucide-react";
 import { useState, useCallback } from "react";
 import {
   loadSettings,
