@@ -34,7 +34,7 @@ export async function shadowLog(
     delete sanitized.frame;
     delete sanitized.audio;
 
-    await supabase.from("session_logs").insert({
+    await (supabase as any).from("session_logs").insert({
       session_id: sessionId,
       event_type: eventType,
       payload: sanitized,

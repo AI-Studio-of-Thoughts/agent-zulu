@@ -166,6 +166,7 @@ export function formatGoalsForPrompt(): string {
 const DEFAULT_SETTINGS: AgentSettings = {
   memoryEnabled: true,
   proactivityLevel: "medium",
+  sovereignTraining: false,
 };
 
 export function loadSettings(): AgentSettings {
