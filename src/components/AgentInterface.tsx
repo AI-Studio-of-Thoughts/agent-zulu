@@ -159,6 +159,21 @@ const AgentInterface = () => {
           }))
         );
       },
+      delegate_to_specialist: async (params) => {
+        const specialist = String(params.specialist ?? "general");
+        const task = String(params.task ?? "");
+        try {
+          const { data, error } = await supabase.functions.invoke("specialist-delegation", {
+            body: { specialist, task, context: [] },
+          });
+          if (error) return `Specialist error: ${error.message}`;
+          const result = data?.analysis ?? "No analysis available.";
+          logSpecialistDelegation(specialist, task, result);
+          return `[${specialist}]: ${result}${data?.isizulu_note ? ` (${data.isizulu_note})` : ""}`;
+        } catch (err) {
+          return `Specialist delegation failed.`;
+        }
+      },
     });
   }, [agent, settings.memoryEnabled]);
 
