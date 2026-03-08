@@ -241,7 +241,7 @@ const AgentInterface = () => {
               frozenFrame={frozenFrame}
               onDismissFrozen={dismissFrozen}
             />
-            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} />
+            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}
