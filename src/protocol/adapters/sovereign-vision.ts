@@ -206,14 +206,23 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
           console.warn("[Sovereign] Falling back to Gemini:", (sovereignErr as Error).message);
 
           const fallbackResult = await this.fallbackToGemini(base64, memoryContext, goalsContext, startTime);
-          if (!fallbackResult) return;
-          data = fallbackResult;
+          if (!fallbackResult) {
+            // Last resort: on-device inference
+            data = await this.fallbackToOnDevice(frame);
+            if (!data) return;
+          } else {
+            data = fallbackResult;
+          }
         }
       } else {
         // Sovereign disabled — go straight to Gemini
         const fallbackResult = await this.fallbackToGemini(base64, memoryContext, goalsContext, startTime);
-        if (!fallbackResult) return;
-        data = fallbackResult;
+        if (!fallbackResult) {
+          data = await this.fallbackToOnDevice(frame);
+          if (!data) return;
+        } else {
+          data = fallbackResult;
+        }
       }
 
       if (!data) return;
