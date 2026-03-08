@@ -17,6 +17,8 @@ export interface GoalEntry {
   active: boolean;
 }
 
+export type AfricanLanguage = "isizulu" | "swahili" | "xhosa" | "yoruba" | "auto";
+
 export interface AgentSettings {
   memoryEnabled: boolean;
   proactivityLevel: "off" | "low" | "medium" | "high";
@@ -24,6 +26,8 @@ export interface AgentSettings {
   isiZuluImmersion: boolean;
   shadowComparison: boolean;
   sovereignBeta: boolean;
+  panAfricanMode: boolean;
+  panAfricanLanguage: AfricanLanguage;
 }
 
 const STORAGE_KEY = "agent-zulu-memory";
