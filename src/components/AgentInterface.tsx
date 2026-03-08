@@ -336,7 +336,9 @@ const AgentInterface = () => {
       setShowStartScreen(false);
     } catch (err) {
       console.error("Failed to start session:", err);
-    } finally {
+      toast.error("Connection failed", {
+        description: err instanceof Error ? err.message : "Could not connect to Agent Zulu. Please try again.",
+      });
       setIsConnecting(false);
     }
   }, [agent]);
