@@ -181,6 +181,8 @@ const DEFAULT_SETTINGS: AgentSettings = {
   isiZuluImmersion: false,
   shadowComparison: false,
   sovereignBeta: false,
+  panAfricanMode: false,
+  panAfricanLanguage: "isizulu",
 };
 
 export function loadSettings(): AgentSettings {
