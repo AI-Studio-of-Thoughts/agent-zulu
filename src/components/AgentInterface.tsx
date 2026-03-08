@@ -238,7 +238,7 @@ const AgentInterface = () => {
     });
   }, [agent, settings.memoryEnabled, settings.isiZuluImmersion]);
 
-  // Listen for proactive events from the adapter
+  // Listen for proactive + gesture events from the adapter
   useEffect(() => {
     const unsub = adapter.on((event) => {
       if (
@@ -252,6 +252,11 @@ const AgentInterface = () => {
         setProactiveText(event.text);
         logProactiveTrigger(event.text, event.confidence);
         setTimeout(() => setProactiveText(null), 8000);
+      }
+      if (event.type === "gesture") {
+        setActiveGesture(event.gesture as any);
+        clearTimeout(gestureTimerRef.current);
+        gestureTimerRef.current = setTimeout(() => setActiveGesture(null), 5000);
       }
     });
     return unsub;
