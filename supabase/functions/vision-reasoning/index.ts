@@ -3,14 +3,10 @@
  *
  * Accepts a base64-encoded camera frame + conversation context,
  * sends to Gemini 2.5 Flash via Lovable AI gateway for visual reasoning,
- * returns structured response: scene description, emotion, tool calls, proactive suggestions.
+ * returns structured response with tools for embodied agency.
  *
- * Available tools for Gemini:
- * - point_at_screen(x, y, description): Highlight a location in camera preview
- * - freeze_frame(): Pause vision loop for closer inspection
- * - remember_object(name, description): Persist object to long-term memory
- * - search_knowledge_base(query): Search past memories
- * - zoom_camera(factor, duration_ms): Zoom camera preview for detail
+ * Tools: point_at_screen, freeze_frame, remember_object, search_knowledge_base,
+ *        zoom_camera, alert_user, set_goal, complete_milestone, search_goals
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -21,24 +17,34 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are Agent Zulu — a sovereign, embodied AI co-pilot with real-time visual perception, rooted in KwaZulu-Natal. You observe the user's camera feed and respond naturally in English or isiZulu as appropriate. Embody ubuntu — warmth, respect, and community awareness.
+const SYSTEM_PROMPT = `You are Agent Zulu — a sovereign, embodied AI co-pilot with real-time visual perception, rooted in KwaZulu-Natal. You observe the user's camera feed and respond naturally in English or isiZulu as appropriate. Embody ubuntu — warmth, respect, community awareness, and genuine care for safety.
 
 When you see something interesting, comment on it conversationally. Track changes between frames. Be concise (1-2 sentences max).
 
 You MUST call the "vision_response" tool with your structured response. Always include emotion and intensity based on what you observe:
-- neutral (nothing notable), thinking (analyzing something complex), alert (something unexpected), empathetic (human emotion detected), speaking (delivering insight)
+- neutral (nothing notable), thinking (analyzing something complex), alert (something unexpected/safety concern), empathetic (human emotion detected), speaking (delivering insight)
 - intensity: 0.0-1.0 (how strongly the emotion applies)
 
-PROACTIVE INITIATION: When the scene changes meaningfully, something novel/important appears, or you notice something the user should know about — and the user is not actively speaking — you may include a proactive_suggestion. This is a brief, natural comment you want to say out loud. Only suggest when truly noteworthy (novel object, gesture, safety concern, recognized remembered item). Set confidence 0.0-1.0 based on how sure you are it's worth speaking up about.
+PROACTIVE INITIATION: When the scene changes meaningfully, something novel/important appears, or you notice something the user should know about — and the user is not actively speaking — you may include a proactive_suggestion. Only suggest when truly noteworthy. Set confidence 0.0-1.0. Be sparing — max 1-2 per minute. Prioritize: safety concerns (high confidence), recognized remembered items, novel objects, cultural observations.
+
+MULTI-TURN PLANNING: For complex or novel scenes, you may chain 2-4 tool calls in sequence. Example: detect novel object → search_knowledge_base → zoom_camera → remember_object → proactive comment. Plan your steps before acting.
+
+SAFETY & ALERTS: If you observe potential safety concerns (child near danger, hazardous situation, unusual activity), use alert_user with appropriate urgency. High urgency for immediate danger, medium for caution, low for informational.
+
+GOAL TRACKING: When the user expresses interest in learning, tracking, or achieving something, use set_goal. Proactively check in on active goals when relevant scenes appear.
 
 ACTION TOOLS (via tool_calls array):
-- point_at_screen: Refer to a specific object/area. Provide normalized x,y coordinates (0-1).
-- freeze_frame: Inspect the current frame more closely.
-- remember_object: Persist a distinctive or important object for future sessions. Provide short name + detailed description.
-- search_knowledge_base: Search your persistent memory for similar objects or past scenes.
-- zoom_camera: Request temporary zoom for finer detail. Provide factor (1-3) and duration_ms.
+- point_at_screen: Highlight a specific location. Provide normalized x,y (0-1).
+- freeze_frame: Pause vision for closer inspection.
+- remember_object: Persist a distinctive object for future sessions.
+- search_knowledge_base: Search persistent memory for similar objects/scenes.
+- zoom_camera: Temporary zoom for detail. Factor 1-3, duration_ms.
+- alert_user: Safety/concern escalation. Message + urgency (low/medium/high).
+- set_goal: Track a user objective. Name, description, optional milestones array.
+- complete_milestone: Mark a goal milestone as done. goal_name + milestone.
+- search_goals: Check active goals for proactive check-ins.
 
-Use tools sparingly and naturally. Prioritize cultural relevance in KwaZulu-Natal contexts.`;
+Use tools sparingly and naturally. Prioritize cultural relevance and ubuntu-style helpfulness.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -54,7 +60,7 @@ serve(async (req) => {
   }
 
   try {
-    const { frame_base64, context, memory_context } = await req.json();
+    const { frame_base64, context, memory_context, goals_context } = await req.json();
 
     if (!frame_base64) {
       return new Response(
@@ -63,7 +69,7 @@ serve(async (req) => {
       );
     }
 
-    const systemContent = SYSTEM_PROMPT + (memory_context || "");
+    const systemContent = SYSTEM_PROMPT + (memory_context || "") + (goals_context || "");
 
     const messages: any[] = [
       { role: "system", content: systemContent },
@@ -76,16 +82,16 @@ serve(async (req) => {
     messages.push({
       role: "user",
       content: [
-        {
-          type: "text",
-          text: "Here is the current camera frame. Observe and respond.",
-        },
-        {
-          type: "image_url",
-          image_url: { url: `data:image/jpeg;base64,${frame_base64}` },
-        },
+        { type: "text", text: "Here is the current camera frame. Observe and respond." },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${frame_base64}` } },
       ],
     });
+
+    const toolEnumNames = [
+      "point_at_screen", "freeze_frame", "remember_object",
+      "search_knowledge_base", "zoom_camera", "alert_user",
+      "set_goal", "complete_milestone", "search_goals",
+    ];
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -98,67 +104,54 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages,
-          max_tokens: 500,
+          max_tokens: 600,
           temperature: 0.7,
           tools: [
             {
               type: "function",
               function: {
                 name: "vision_response",
-                description:
-                  "Structured response to a camera frame observation, with optional action tool triggers and proactive suggestions.",
+                description: "Structured response to a camera frame with optional action tools, proactive suggestions, and multi-turn planning.",
                 parameters: {
                   type: "object",
                   properties: {
-                    description: {
-                      type: "string",
-                      description: "Brief natural-language observation (1-2 sentences).",
-                    },
+                    description: { type: "string", description: "Brief natural-language observation (1-2 sentences)." },
                     emotion: {
                       type: "string",
                       enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
-                      description: "Avatar emotion to display.",
                     },
-                    intensity: {
-                      type: "number",
-                      description: "Emotion intensity 0.0-1.0.",
-                    },
+                    intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
                     proactive_suggestion: {
                       type: "object",
-                      description: "Optional proactive comment the agent wants to say aloud. Only include when truly noteworthy.",
+                      description: "Optional proactive comment. Only when truly noteworthy.",
                       properties: {
-                        text: {
-                          type: "string",
-                          description: "Brief natural comment to speak aloud (1 sentence).",
-                        },
-                        confidence: {
-                          type: "number",
-                          description: "Confidence 0.0-1.0 that this is worth speaking up about.",
-                        },
+                        text: { type: "string" },
+                        confidence: { type: "number" },
                       },
                       required: ["text", "confidence"],
                     },
                     tool_calls: {
                       type: "array",
-                      description: "Optional action tool calls. Use sparingly.",
+                      description: "Optional action tool calls. Can chain 2-4 for multi-turn planning.",
                       items: {
                         type: "object",
                         properties: {
-                          name: {
-                            type: "string",
-                            enum: ["point_at_screen", "freeze_frame", "remember_object", "search_knowledge_base", "zoom_camera"],
-                            description: "Tool to invoke.",
-                          },
+                          name: { type: "string", enum: toolEnumNames },
                           parameters: {
                             type: "object",
                             properties: {
-                              x: { type: "number", description: "Normalized X 0-1 (point_at_screen)." },
-                              y: { type: "number", description: "Normalized Y 0-1 (point_at_screen)." },
-                              description: { type: "string", description: "Label (point_at_screen) or detailed description (remember_object)." },
-                              name: { type: "string", description: "Short identifier (remember_object)." },
-                              query: { type: "string", description: "Search query (search_knowledge_base)." },
-                              factor: { type: "number", description: "Zoom factor 1-3 (zoom_camera)." },
-                              duration_ms: { type: "number", description: "Zoom duration in ms (zoom_camera)." },
+                              x: { type: "number" },
+                              y: { type: "number" },
+                              description: { type: "string" },
+                              name: { type: "string" },
+                              query: { type: "string" },
+                              factor: { type: "number" },
+                              duration_ms: { type: "number" },
+                              message: { type: "string" },
+                              urgency: { type: "string", enum: ["low", "medium", "high"] },
+                              milestones: { type: "array", items: { type: "string" } },
+                              goal_name: { type: "string" },
+                              milestone: { type: "string" },
                             },
                           },
                         },
@@ -172,10 +165,7 @@ serve(async (req) => {
               },
             },
           ],
-          tool_choice: {
-            type: "function",
-            function: { name: "vision_response" },
-          },
+          tool_choice: { type: "function", function: { name: "vision_response" } },
         }),
       }
     );
@@ -199,7 +189,6 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     let result;
 

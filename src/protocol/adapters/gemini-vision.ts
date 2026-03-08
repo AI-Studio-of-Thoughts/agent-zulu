@@ -1,5 +1,5 @@
 /**
- * Gemini Vision Reasoning Adapter
+ * Gemini Vision Reasoning Adapter (with goals context)
  *
  * Vision-only adapter that sends camera frames to Gemini 2.5 Flash
  * via the vision-reasoning edge function. Does NOT handle voice —
@@ -13,7 +13,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { formatMemoriesForPrompt } from "@/lib/agent-memory";
+import { formatMemoriesForPrompt, formatGoalsForPrompt, loadSettings } from "@/lib/agent-memory";
 import type {
   AgentBackendAdapter,
   AgentEventHandler,
@@ -116,10 +116,12 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
     try {
       const base64 = await this.blobToBase64(frame);
 
-      const memoryContext = formatMemoriesForPrompt();
+      const currentSettings = loadSettings();
+      const memoryContext = currentSettings.memoryEnabled ? formatMemoriesForPrompt() : "";
+      const goalsContext = currentSettings.memoryEnabled ? formatGoalsForPrompt() : "";
 
       const { data, error } = await supabase.functions.invoke("vision-reasoning", {
-        body: { frame_base64: base64, context: this.context, memory_context: memoryContext },
+        body: { frame_base64: base64, context: this.context, memory_context: memoryContext, goals_context: goalsContext },
       });
 
       if (error) {

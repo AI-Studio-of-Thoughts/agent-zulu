@@ -6,18 +6,28 @@ import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
 import ConnectionStatus from "./ConnectionStatus";
 import VisionLoop from "./VisionLoop";
+import AlertOverlay from "./AlertOverlay";
+import SettingsPanel from "./SettingsPanel";
 import type { VisionLoopHandle } from "./VisionLoop";
+import type { AlertData } from "./AlertOverlay";
 import { useAgentProtocol, HybridAdapter } from "@/protocol";
 import { supabase } from "@/integrations/supabase/client";
-import { saveMemory, searchMemories } from "@/lib/agent-memory";
+import {
+  saveMemory,
+  searchMemories,
+  saveGoal,
+  loadGoals,
+  completeGoalMilestone,
+  loadSettings,
+  getProactiveThreshold,
+  type AgentSettings,
+} from "@/lib/agent-memory";
 
 interface PointerData {
   x: number;
   y: number;
   description: string;
 }
-
-const PROACTIVE_CONFIDENCE_THRESHOLD = 0.7;
 
 const AgentInterface = () => {
   const adapter = useMemo(() => new HybridAdapter(), []);
@@ -40,8 +50,18 @@ const AgentInterface = () => {
   const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Proactive speech queue
+  // Proactive speech + alerts
   const [proactiveText, setProactiveText] = useState<string | null>(null);
+  const [activeAlert, setActiveAlert] = useState<AlertData | null>(null);
+  const alertTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Settings
+  const [settings, setSettings] = useState<AgentSettings>(loadSettings);
+  const proactiveThreshold = getProactiveThreshold(settings.proactivityLevel);
+
+  // Proactive rate limiter
+  const lastProactiveRef = useRef(0);
+  const PROACTIVE_MIN_INTERVAL = 30_000; // 30s min between proactive suggestions
 
   const isConnected = agent.status === "connected";
   const isSpeaking = agent.voiceState.isSpeaking;
@@ -71,6 +91,7 @@ const AgentInterface = () => {
         return "No frame available to freeze.";
       },
       remember_object: async (params) => {
+        if (!settings.memoryEnabled) return "Memory is disabled by user.";
         const name = String(params.name ?? "unknown");
         const description = String(params.description ?? "");
         saveMemory(name, description);
@@ -79,9 +100,7 @@ const AgentInterface = () => {
       search_knowledge_base: async (params) => {
         const query = String(params.query ?? "");
         const matches = searchMemories(query);
-        if (matches.length === 0) {
-          return "No matching memories found.";
-        }
+        if (matches.length === 0) return "No matching memories found.";
         return JSON.stringify(
           matches.map((m) => ({ name: m.name, description: m.description }))
         );
@@ -94,28 +113,73 @@ const AgentInterface = () => {
         zoomTimerRef.current = setTimeout(() => setZoomLevel(1), duration);
         return `Zoomed to ${factor}x for ${duration}ms.`;
       },
+      alert_user: async (params) => {
+        const message = String(params.message ?? "Alert");
+        const urgency = (["low", "medium", "high"].includes(String(params.urgency))
+          ? String(params.urgency)
+          : "medium") as AlertData["urgency"];
+        setActiveAlert({ message, urgency });
+        clearTimeout(alertTimerRef.current);
+        // High urgency persists until dismissed; others auto-dismiss
+        if (urgency !== "high") {
+          alertTimerRef.current = setTimeout(() => setActiveAlert(null), 8000);
+        }
+        return `Alert shown: [${urgency}] ${message}`;
+      },
+      set_goal: async (params) => {
+        if (!settings.memoryEnabled) return "Memory is disabled by user.";
+        const name = String(params.name ?? "goal");
+        const description = String(params.description ?? "");
+        const milestones = Array.isArray(params.milestones) ? params.milestones.map(String) : [];
+        saveGoal(name, description, milestones);
+        return `Goal "${name}" set with ${milestones.length} milestones.`;
+      },
+      complete_milestone: async (params) => {
+        const goalName = String(params.goal_name ?? "");
+        const milestone = String(params.milestone ?? "");
+        completeGoalMilestone(goalName, milestone);
+        return `Milestone "${milestone}" completed for goal "${goalName}".`;
+      },
+      search_goals: async () => {
+        const goals = loadGoals().filter((g) => g.active);
+        if (goals.length === 0) return "No active goals.";
+        return JSON.stringify(
+          goals.map((g) => ({
+            name: g.name,
+            description: g.description,
+            progress: `${g.completedMilestones.length}/${g.milestones.length}`,
+          }))
+        );
+      },
     });
-  }, [agent]);
+  }, [agent, settings.memoryEnabled]);
 
   // Listen for proactive events from the adapter
   useEffect(() => {
     const unsub = adapter.on((event) => {
       if (
         event.type === "proactive" &&
-        event.confidence >= PROACTIVE_CONFIDENCE_THRESHOLD &&
+        event.confidence >= proactiveThreshold &&
         !isSpeaking
       ) {
+        const now = Date.now();
+        if (now - lastProactiveRef.current < PROACTIVE_MIN_INTERVAL) return;
+        lastProactiveRef.current = now;
         setProactiveText(event.text);
-        // Auto-clear after display
         setTimeout(() => setProactiveText(null), 6000);
       }
     });
     return unsub;
-  }, [adapter, isSpeaking]);
+  }, [adapter, isSpeaking, proactiveThreshold]);
 
   const dismissFrozen = useCallback(() => {
     setFrozenFrame(null);
     clearTimeout(freezeTimerRef.current);
+  }, []);
+
+  const dismissAlert = useCallback(() => {
+    setActiveAlert(null);
+    clearTimeout(alertTimerRef.current);
   }, []);
 
   // Session timer
@@ -166,6 +230,7 @@ const AgentInterface = () => {
     setFrozenFrame(null);
     setZoomLevel(1);
     setProactiveText(null);
+    setActiveAlert(null);
   }, [agent, mediaStream]);
 
   const toggleMic = useCallback(() => {
@@ -265,6 +330,12 @@ const AgentInterface = () => {
             </motion.div>
 
             <ConnectionStatus isConnected={isConnected} sessionDuration={sessionDuration} />
+
+            {/* Alert overlay */}
+            <AlertOverlay alert={activeAlert} onDismiss={dismissAlert} />
+
+            {/* Settings panel */}
+            <SettingsPanel onSettingsChange={setSettings} />
 
             {/* Avatar area */}
             <div className="absolute inset-0 flex items-center justify-center">
