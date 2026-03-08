@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, ShieldAlert, Info } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Info, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export interface AlertData {
   message: string;
@@ -9,6 +9,7 @@ export interface AlertData {
 interface AlertOverlayProps {
   alert: AlertData | null;
   onDismiss: () => void;
+  onFeedback?: (rating: "up" | "down") => void;
 }
 
 const urgencyConfig = {
@@ -35,7 +36,7 @@ const urgencyConfig = {
   },
 };
 
-const AlertOverlay = ({ alert, onDismiss }: AlertOverlayProps) => {
+const AlertOverlay = ({ alert, onDismiss, onFeedback }: AlertOverlayProps) => {
   return (
     <AnimatePresence>
       {alert && (
@@ -46,9 +47,8 @@ const AlertOverlay = ({ alert, onDismiss }: AlertOverlayProps) => {
           exit={{ opacity: 0, y: -20 }}
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
         >
-          <button
-            onClick={onDismiss}
-            className={`glass-surface rounded-xl px-5 py-3 max-w-sm flex items-center gap-3 border ${urgencyConfig[alert.urgency].borderClass} ${urgencyConfig[alert.urgency].bgClass} ${urgencyConfig[alert.urgency].glowClass} transition-all hover:scale-[1.02]`}
+          <div
+            className={`glass-surface rounded-xl px-5 py-3 max-w-sm flex items-center gap-3 border ${urgencyConfig[alert.urgency].borderClass} ${urgencyConfig[alert.urgency].bgClass} ${urgencyConfig[alert.urgency].glowClass} transition-all`}
           >
             {(() => {
               const Icon = urgencyConfig[alert.urgency].icon;
@@ -57,14 +57,36 @@ const AlertOverlay = ({ alert, onDismiss }: AlertOverlayProps) => {
                   animate={alert.urgency === "high" ? { scale: [1, 1.2, 1] } : {}}
                   transition={{ duration: 0.8, repeat: Infinity }}
                 >
-                  <Icon className={`w-5 h-5 ${urgencyConfig[alert.urgency].textClass}`} />
+                  <Icon className={`w-5 h-5 flex-shrink-0 ${urgencyConfig[alert.urgency].textClass}`} />
                 </motion.div>
               );
             })()}
-            <p className="font-mono text-xs text-foreground/90 leading-relaxed text-left">
+            <p className="font-mono text-xs text-foreground/90 leading-relaxed text-left flex-1">
               {alert.message}
             </p>
-          </button>
+            {onFeedback && (
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                <button
+                  onClick={() => onFeedback("up")}
+                  className="p-1 rounded text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ThumbsUp className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => onFeedback("down")}
+                  className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <ThumbsDown className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <button
+              onClick={onDismiss}
+              className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+            >
+              ✕
+            </button>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, X, Brain, MessageSquare, Trash2, Database } from "lucide-react";
+import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages } from "lucide-react";
 import { useState, useCallback } from "react";
 import {
   loadSettings,
@@ -43,6 +43,21 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
     { value: "high", label: "High" },
   ];
 
+  const Toggle = ({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) => (
+    <button
+      onClick={onToggle}
+      className={`relative w-10 h-5 rounded-full transition-colors ${
+        enabled ? "bg-primary/40" : "bg-muted"
+      }`}
+    >
+      <div
+        className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+          enabled ? "left-5.5 bg-primary" : "left-0.5 bg-muted-foreground"
+        }`}
+      />
+    </button>
+  );
+
   return (
     <>
       <motion.button
@@ -65,14 +80,13 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Backdrop */}
             <div
               className="absolute inset-0 bg-background/60 backdrop-blur-sm"
               onClick={() => setIsOpen(false)}
             />
 
             <motion.div
-              className="relative glass-surface rounded-2xl p-6 w-80 max-w-[90vw] border border-border/50"
+              className="relative glass-surface rounded-2xl p-6 w-80 max-w-[90vw] max-h-[80vh] overflow-y-auto border border-border/50"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -90,29 +104,17 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                 </button>
               </div>
 
-              {/* Memory Toggle */}
               <div className="space-y-5">
+                {/* Memory Toggle */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-primary" />
                     <span className="font-mono text-xs text-foreground/70">Memory</span>
                   </div>
-                  <button
-                    onClick={() => update({ memoryEnabled: !settings.memoryEnabled })}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                      settings.memoryEnabled
-                        ? "bg-primary/40"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
-                        settings.memoryEnabled
-                          ? "left-5.5 bg-primary"
-                          : "left-0.5 bg-muted-foreground"
-                      }`}
-                    />
-                  </button>
+                  <Toggle
+                    enabled={settings.memoryEnabled}
+                    onToggle={() => update({ memoryEnabled: !settings.memoryEnabled })}
+                  />
                 </div>
 
                 {settings.memoryEnabled && (
@@ -144,6 +146,23 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   </div>
                 </div>
 
+                {/* isiZulu Immersion */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Languages className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">isiZulu Immersion</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Responses in isiZulu first
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={settings.isiZuluImmersion}
+                    onToggle={() => update({ isiZuluImmersion: !settings.isiZuluImmersion })}
+                  />
+                </div>
+
                 {/* Sovereign Training Toggle */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -155,22 +174,10 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => update({ sovereignTraining: !settings.sovereignTraining })}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                      settings.sovereignTraining
-                        ? "bg-primary/40"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
-                        settings.sovereignTraining
-                          ? "left-5.5 bg-primary"
-                          : "left-0.5 bg-muted-foreground"
-                      }`}
-                    />
-                  </button>
+                  <Toggle
+                    enabled={settings.sovereignTraining}
+                    onToggle={() => update({ sovereignTraining: !settings.sovereignTraining })}
+                  />
                 </div>
 
                 {/* Clear Data */}

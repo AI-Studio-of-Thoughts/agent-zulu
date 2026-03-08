@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Power } from "lucide-react";
+import { Power, ThumbsUp, ThumbsDown } from "lucide-react";
 import AvatarDisplay from "./AvatarDisplay";
 import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
@@ -20,6 +20,7 @@ import {
   completeGoalMilestone,
   loadSettings,
   getProactiveThreshold,
+  getGoalReminders,
   type AgentSettings,
 } from "@/lib/agent-memory";
 import {
@@ -29,6 +30,7 @@ import {
   logSpecialistDelegation,
   logProactiveTrigger,
   logAlertTriggered,
+  shadowLog,
 } from "@/lib/shadow-logger";
 
 interface PointerData {
@@ -59,10 +61,12 @@ const AgentInterface = () => {
   const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Proactive speech + alerts
+  // Proactive speech + alerts + feedback
   const [proactiveText, setProactiveText] = useState<string | null>(null);
   const [activeAlert, setActiveAlert] = useState<AlertData | null>(null);
+  const [goalReminder, setGoalReminder] = useState<string | null>(null);
   const alertTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   // Settings
   const [settings, setSettings] = useState<AgentSettings>(loadSettings);
@@ -70,11 +74,16 @@ const AgentInterface = () => {
 
   // Proactive rate limiter
   const lastProactiveRef = useRef(0);
-  const PROACTIVE_MIN_INTERVAL = 30_000; // 30s min between proactive suggestions
+  const PROACTIVE_MIN_INTERVAL = 30_000;
 
   const isConnected = agent.status === "connected";
   const isSpeaking = agent.voiceState.isSpeaking;
   const isListening = agent.voiceState.isListening;
+
+  // Feedback handler
+  const handleFeedback = useCallback((type: "proactive" | "alert", text: string, rating: "up" | "down") => {
+    shadowLog("user_feedback", { type, text, rating });
+  }, []);
 
   // Register tool handlers on the adapter
   useEffect(() => {
@@ -163,20 +172,41 @@ const AgentInterface = () => {
       delegate_to_specialist: async (params) => {
         const specialist = String(params.specialist ?? "general");
         const task = String(params.task ?? "");
+        const immersionNote = settings.isiZuluImmersion
+          ? " Respond primarily in isiZulu with English gloss."
+          : "";
         try {
           const { data, error } = await supabase.functions.invoke("specialist-delegation", {
-            body: { specialist, task, context: [] },
+            body: { specialist, task: task + immersionNote, context: [] },
           });
           if (error) return `Specialist error: ${error.message}`;
           const result = data?.analysis ?? "No analysis available.";
           logSpecialistDelegation(specialist, task, result);
           return `[${specialist}]: ${result}${data?.isizulu_note ? ` (${data.isizulu_note})` : ""}`;
-        } catch (err) {
+        } catch {
           return `Specialist delegation failed.`;
         }
       },
+      describe_in_isizulu: async (params) => {
+        const subject = String(params.subject ?? "this object");
+        try {
+          const { data, error } = await supabase.functions.invoke("specialist-delegation", {
+            body: {
+              specialist: "heritage",
+              task: `Describe "${subject}" primarily in isiZulu. Provide the isiZulu description first, then a brief English gloss. Include cultural significance, relevant proverbs (izaga), and symbolic meaning.`,
+              context: [],
+            },
+          });
+          if (error) return `Heritage specialist error: ${error.message}`;
+          const result = data?.analysis ?? "Akukho ncazelo.";
+          logSpecialistDelegation("heritage", `describe_in_isizulu: ${subject}`, result);
+          return `[isiZulu]: ${result}${data?.isizulu_note ? `\n${data.isizulu_note}` : ""}`;
+        } catch {
+          return "Heritage specialist unavailable.";
+        }
+      },
     });
-  }, [agent, settings.memoryEnabled]);
+  }, [agent, settings.memoryEnabled, settings.isiZuluImmersion]);
 
   // Listen for proactive events from the adapter
   useEffect(() => {
@@ -191,11 +221,36 @@ const AgentInterface = () => {
         lastProactiveRef.current = now;
         setProactiveText(event.text);
         logProactiveTrigger(event.text, event.confidence);
-        setTimeout(() => setProactiveText(null), 6000);
+        setTimeout(() => setProactiveText(null), 8000);
       }
     });
     return unsub;
   }, [adapter, isSpeaking, proactiveThreshold]);
+
+  // Offline goal reminders — cycle through active goals when in local mode
+  useEffect(() => {
+    if (localMode && isConnected && settings.memoryEnabled) {
+      const reminders = getGoalReminders();
+      if (reminders.length === 0) return;
+      let idx = 0;
+      // Show first reminder after 5s
+      const showNext = () => {
+        setGoalReminder(reminders[idx % reminders.length]);
+        idx++;
+        setTimeout(() => setGoalReminder(null), 6000);
+      };
+      const timeout = setTimeout(showNext, 5000);
+      goalReminderTimerRef.current = setInterval(showNext, 45000); // every 45s
+      return () => {
+        clearTimeout(timeout);
+        clearInterval(goalReminderTimerRef.current);
+        setGoalReminder(null);
+      };
+    } else {
+      setGoalReminder(null);
+      clearInterval(goalReminderTimerRef.current);
+    }
+  }, [localMode, isConnected, settings.memoryEnabled]);
 
   const dismissFrozen = useCallback(() => {
     setFrozenFrame(null);
@@ -258,6 +313,7 @@ const AgentInterface = () => {
     setZoomLevel(1);
     setProactiveText(null);
     setActiveAlert(null);
+    setGoalReminder(null);
   }, [agent, mediaStream]);
 
   const toggleMic = useCallback(() => {
@@ -358,8 +414,15 @@ const AgentInterface = () => {
 
             <ConnectionStatus isConnected={isConnected} sessionDuration={sessionDuration} />
 
-            {/* Alert overlay */}
-            <AlertOverlay alert={activeAlert} onDismiss={dismissAlert} />
+            {/* Alert overlay with feedback */}
+            <AlertOverlay
+              alert={activeAlert}
+              onDismiss={dismissAlert}
+              onFeedback={(rating) => {
+                if (activeAlert) handleFeedback("alert", activeAlert.message, rating);
+                dismissAlert();
+              }}
+            />
 
             {/* Settings panel */}
             <SettingsPanel onSettingsChange={setSettings} />
@@ -376,7 +439,7 @@ const AgentInterface = () => {
               />
             </div>
 
-            {/* Proactive suggestion bubble */}
+            {/* Proactive suggestion bubble with feedback */}
             <AnimatePresence>
               {proactiveText && (
                 <motion.div
@@ -390,7 +453,46 @@ const AgentInterface = () => {
                     <p className="font-mono text-xs text-foreground/80 leading-relaxed">
                       {proactiveText}
                     </p>
+                    <div className="flex items-center justify-end gap-1 mt-1.5">
+                      <button
+                        onClick={() => {
+                          handleFeedback("proactive", proactiveText, "up");
+                          setProactiveText(null);
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <ThumbsUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleFeedback("proactive", proactiveText, "down");
+                          setProactiveText(null);
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <ThumbsDown className="w-3 h-3" />
+                      </button>
+                    </div>
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary/20 rotate-45 border-r border-b border-primary/30" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Offline goal reminder bubble */}
+            <AnimatePresence>
+              {goalReminder && (
+                <motion.div
+                  className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 max-w-xs"
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                >
+                  <div className="glass-surface rounded-lg px-4 py-2 border border-accent/30">
+                    <p className="font-mono text-[10px] text-accent/80 leading-relaxed">
+                      {goalReminder}
+                    </p>
                   </div>
                 </motion.div>
               )}
@@ -404,7 +506,13 @@ const AgentInterface = () => {
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
             />
-            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} onLocalModeChange={setLocalMode} />
+            <VisionLoop
+              ref={visionLoopRef}
+              mediaStream={mediaStream}
+              vision={agent.vision}
+              voiceActive={isSpeaking || isListening}
+              onLocalModeChange={setLocalMode}
+            />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}
