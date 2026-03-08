@@ -132,6 +132,9 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
               context: this.context,
               memory_context: memoryContext,
               goals_context: goalsContext,
+              target_language: currentSettings.panAfricanMode
+                ? currentSettings.panAfricanLanguage
+                : (currentSettings.isiZuluImmersion ? "isizulu" : "isizulu"),
             },
           });
 

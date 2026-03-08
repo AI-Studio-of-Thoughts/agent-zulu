@@ -88,6 +88,53 @@ ACTION TOOLS (via tool_calls array):
 - set_goal: Track learning objectives.
 - zoom_camera: Zoom into cultural details.`;
 
+function getPanAfricanPrompt(lang: string): string {
+  switch (lang) {
+    case "swahili":
+      return `\n\nLANGUAGE ADAPTATION — KISWAHILI:
+You are now responding in Kiswahili first, with English gloss.
+Adapt your cultural lens to East African heritage (Kenya, Tanzania, DRC).
+- Use Swahili methali (proverbs): "Haraka haraka haina baraka" (Haste has no blessing), "Umoja ni nguvu, utengano ni udhaifu" (Unity is strength, division is weakness)
+- Reference: kanga patterns & meanings, Maasai beadwork, vitenge fabric symbolism
+- Traditional items: kikoi, kanga, jembe, kibao, kofia
+- Ceremonies: harusi (wedding), jando/unyago (initiation), maulidi
+- Food: ugali, pilau, chapati, nyama choma, samaki wa kupaka
+- Plants: mchicha, mtama, minazi
+- Greetings: "Habari yako?" "Karibu sana!"
+Respond warmly in Kiswahili with East African cultural depth.\n`;
+
+    case "xhosa":
+      return `\n\nLANGUAGE ADAPTATION — ISIXHOSA:
+You are now responding in isiXhosa first, with English gloss.
+Adapt your cultural lens to amaXhosa heritage (Eastern Cape, South Africa).
+- Use Xhosa amaqhalo (proverbs): "Umntu ngumntu ngabantu" (A person is a person through people), "Isala kutyelwa, sibona ngomophu" (The one who doesn't visit learns from ashes)
+- Reference: ukwaluka (initiation), intonjane (women's initiation), Xhosa beadwork patterns
+- Traditional items: imbhaco, ixhama, umqhele, inkciyo, ibhayi
+- Ceremonies: umgidi, ukuthwasa (calling to be igqirha/healer), umembeso
+- Food: umngqusho (samp & beans), umfino, amarhewu
+- Clicks: c, q, x — use them naturally in isiXhosa
+- Greetings: "Molo!" "Bhota!" "Unjani?"
+Respond with warmth and depth of amaXhosa tradition.\n`;
+
+    case "yoruba":
+      return `\n\nLANGUAGE ADAPTATION — YORÙBÁ:
+You are now responding in Yorùbá first, with English gloss.
+Adapt your cultural lens to Yorùbá heritage (Nigeria, Benin, Togo).
+- Use Yorùbá òwe (proverbs): "Àgbà kì í wà lójà, kí orí ọmọ tuntun wọ́" (An elder doesn't stand in the market while a child's head is crooked), "Bí a bá ń lọ ọ̀nà kan, a ó rí ohun tí a ó jẹ" (If we keep to one path, we'll find sustenance)
+- Reference: adire cloth & indigo dyeing, ileke (beadwork), gèlè (headwrap) tying
+- Traditional items: agbádá, ìró, gèlè, ẹ̀kú, ọ̀pá, àṣọ-òkè
+- Ceremonies: iṣọmolórúkọ (naming), ìgbéyàwó (wedding), Ẹgúngún (masquerade), Ifá divination
+- Food: àmàlà, ẹ̀bà, ewedu, gbẹ̀gìrì, àsàrà (bean cake)
+- Deities: reference Ifá wisdom, Ọ̀rúnmìlà, Ọṣun, Ṣàngó when culturally relevant
+- Greetings: "Ẹ kú àárọ̀!" "Ẹ kú ilé!" "Ẹ ṣé o!"
+Use proper tonal marks. Respond with Yorùbá philosophical depth and àṣà (custom).\n`;
+
+    case "isizulu":
+    default:
+      return ""; // Default isiZulu is already the base prompt
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -102,7 +149,7 @@ serve(async (req) => {
   }
 
   try {
-    const { frame_base64, context, memory_context, goals_context } = await req.json();
+    const { frame_base64, context, memory_context, goals_context, target_language } = await req.json();
 
     if (!frame_base64) {
       return new Response(
@@ -111,7 +158,9 @@ serve(async (req) => {
       );
     }
 
-    const systemContent = SOVEREIGN_SYSTEM_PROMPT + (memory_context || "") + (goals_context || "");
+    // Pan-African language adaptation
+    const langAdaptation = getPanAfricanPrompt(target_language || "isizulu");
+    const systemContent = SOVEREIGN_SYSTEM_PROMPT + langAdaptation + (memory_context || "") + (goals_context || "");
 
     const messages: any[] = [
       { role: "system", content: systemContent },
@@ -121,10 +170,19 @@ serve(async (req) => {
       messages.push(...context.slice(-6));
     }
 
+    const userPrompts: Record<string, string> = {
+      isizulu: "Bheka isithombe sasemakhameleni. Chaza okubonayo ngokolimi lwesiZulu kuqala. (Observe the current camera frame. Describe what you see in isiZulu first.)",
+      swahili: "Angalia picha ya kamera. Eleza unachokiona kwa Kiswahili kwanza. (Observe the current camera frame. Describe what you see in Kiswahili first.)",
+      xhosa: "Jonga umfanekiso wekhamela. Chaza okubonayo ngesiXhosa kuqala. (Observe the current camera frame. Describe what you see in isiXhosa first.)",
+      yoruba: "Wo àwòrán kámẹ́rà yìí. Ṣàlàyé ohun tí o rí ní Yorùbá kọ́kọ́. (Observe the current camera frame. Describe what you see in Yorùbá first.)",
+    };
+    const lang = target_language || "isizulu";
+    const userText = userPrompts[lang] || userPrompts.isizulu;
+
     messages.push({
       role: "user",
       content: [
-        { type: "text", text: "Bheka isithombe sasemakhameleni. Chaza okubonayo ngokolimi lwesiZulu kuqala. (Observe the current camera frame. Describe what you see in isiZulu first.)" },
+        { type: "text", text: userText },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${frame_base64}` } },
       ],
     });

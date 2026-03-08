@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield } from "lucide-react";
+import { Settings, X, Brain, MessageSquare, Trash2, Database, Languages, FlaskConical, Shield, Globe } from "lucide-react";
 import { useState, useCallback } from "react";
 import {
   loadSettings,
@@ -9,6 +9,7 @@ import {
   loadMemories,
   loadGoals,
   type AgentSettings,
+  type AfricanLanguage,
 } from "@/lib/agent-memory";
 
 interface SettingsPanelProps {
@@ -219,6 +220,52 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                     ⚡ Vision routed through sovereign heritage engine.
                     <br />
                     Requires reconnect to take effect.
+                  </div>
+                )}
+
+                {/* Pan-African Mode */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <div>
+                      <span className="font-mono text-xs text-foreground/70">Pan-African Mode</span>
+                      <p className="font-mono text-[9px] text-muted-foreground mt-0.5">
+                        Multi-language African immersion
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    enabled={settings.panAfricanMode}
+                    onToggle={() => update({ panAfricanMode: !settings.panAfricanMode })}
+                  />
+                </div>
+
+                {settings.panAfricanMode && (
+                  <div className="pl-6 space-y-2">
+                    <div className="flex gap-1.5 flex-wrap">
+                      {([
+                        { value: "auto" as AfricanLanguage, label: "Auto" },
+                        { value: "isizulu" as AfricanLanguage, label: "isiZulu" },
+                        { value: "swahili" as AfricanLanguage, label: "Kiswahili" },
+                        { value: "xhosa" as AfricanLanguage, label: "isiXhosa" },
+                        { value: "yoruba" as AfricanLanguage, label: "Yorùbá" },
+                      ]).map((lang) => (
+                        <button
+                          key={lang.value}
+                          onClick={() => update({ panAfricanLanguage: lang.value })}
+                          className={`py-1 px-2 rounded-lg font-mono text-[10px] tracking-wider transition-all ${
+                            settings.panAfricanLanguage === lang.value
+                              ? "bg-primary/20 text-primary border border-primary/40"
+                              : "bg-muted/50 text-muted-foreground border border-transparent hover:border-border"
+                          }`}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="font-mono text-[9px] text-primary/60 border-l border-primary/20 pl-2">
+                      🌍 Sovereign vision adapts proverbs & symbolism to selected culture.
+                    </p>
                   </div>
                 )}
 
