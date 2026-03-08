@@ -13,7 +13,7 @@
  * Model: Xenova/mobilenet_v2_1.0_224 (~14MB, fast on mobile)
  */
 
-import { pipeline, type ImageClassificationPipeline } from "@huggingface/transformers";
+import { pipeline } from "@huggingface/transformers";
 
 // Cultural response templates mapped to common scene categories
 interface CulturalResponse {
