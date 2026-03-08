@@ -8,6 +8,7 @@ interface AvatarDisplayProps {
   isConnected: boolean;
   emotion?: AvatarEmotion;
   intensity?: number;
+  localMode?: boolean;
 }
 
 const AvatarDisplay = ({
