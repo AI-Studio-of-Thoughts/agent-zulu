@@ -189,6 +189,7 @@ const AgentInterface = () => {
         if (now - lastProactiveRef.current < PROACTIVE_MIN_INTERVAL) return;
         lastProactiveRef.current = now;
         setProactiveText(event.text);
+        logProactiveTrigger(event.text, event.confidence);
         setTimeout(() => setProactiveText(null), 6000);
       }
     });
