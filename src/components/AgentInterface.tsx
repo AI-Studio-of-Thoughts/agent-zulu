@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Power, ThumbsUp, ThumbsDown } from "lucide-react";
+import { toast } from "sonner";
 import AvatarDisplay from "./AvatarDisplay";
 import CameraPreview from "./CameraPreview";
 import MicIndicator from "./MicIndicator";
