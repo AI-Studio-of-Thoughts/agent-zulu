@@ -29,8 +29,9 @@ You MUST call the "vision_response" tool with your structured response. Always i
 You can also trigger ACTION tools via the tool_calls array in your response:
 - point_at_screen: Use when referring to a specific object/area in the frame. Provide normalized x,y coordinates (0-1).
 - freeze_frame: Use when you want to inspect the current frame more closely, or when something important appears briefly.
+- remember_object: Use when you see a distinctive or important object the user might want you to recall in future sessions. Provide a short name and detailed description.
 
-Only trigger action tools when genuinely useful — don't overuse them.`;
+Only trigger action tools when genuinely useful — don't overuse them. Use remember_object sparingly for truly notable items.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
