@@ -9,6 +9,7 @@ import {
   loadMemories,
   loadGoals,
   type AgentSettings,
+  type AfricanLanguage,
 } from "@/lib/agent-memory";
 
 interface SettingsPanelProps {
