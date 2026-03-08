@@ -116,10 +116,12 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
     try {
       const base64 = await this.blobToBase64(frame);
 
-      const memoryContext = formatMemoriesForPrompt();
+      const currentSettings = loadSettings();
+      const memoryContext = currentSettings.memoryEnabled ? formatMemoriesForPrompt() : "";
+      const goalsContext = currentSettings.memoryEnabled ? formatGoalsForPrompt() : "";
 
       const { data, error } = await supabase.functions.invoke("vision-reasoning", {
-        body: { frame_base64: base64, context: this.context, memory_context: memoryContext },
+        body: { frame_base64: base64, context: this.context, memory_context: memoryContext, goals_context: goalsContext },
       });
 
       if (error) {
