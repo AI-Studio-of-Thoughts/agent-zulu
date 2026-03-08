@@ -63,6 +63,12 @@ const AgentInterface = () => {
         }
         return "No frame available to freeze.";
       },
+      remember_object: async (params) => {
+        const name = String(params.name ?? "unknown");
+        const description = String(params.description ?? "");
+        saveMemory(name, description);
+        return `Remembered "${name}" for future sessions.`;
+      },
     });
   }, [agent]);
 
