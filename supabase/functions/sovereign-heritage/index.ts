@@ -170,10 +170,19 @@ serve(async (req) => {
       messages.push(...context.slice(-6));
     }
 
+    const userPrompts: Record<string, string> = {
+      isizulu: "Bheka isithombe sasemakhameleni. Chaza okubonayo ngokolimi lwesiZulu kuqala. (Observe the current camera frame. Describe what you see in isiZulu first.)",
+      swahili: "Angalia picha ya kamera. Eleza unachokiona kwa Kiswahili kwanza. (Observe the current camera frame. Describe what you see in Kiswahili first.)",
+      xhosa: "Jonga umfanekiso wekhamela. Chaza okubonayo ngesiXhosa kuqala. (Observe the current camera frame. Describe what you see in isiXhosa first.)",
+      yoruba: "Wo àwòrán kámẹ́rà yìí. Ṣàlàyé ohun tí o rí ní Yorùbá kọ́kọ́. (Observe the current camera frame. Describe what you see in Yorùbá first.)",
+    };
+    const lang = target_language || "isizulu";
+    const userText = userPrompts[lang] || userPrompts.isizulu;
+
     messages.push({
       role: "user",
       content: [
-        { type: "text", text: "Bheka isithombe sasemakhameleni. Chaza okubonayo ngokolimi lwesiZulu kuqala. (Observe the current camera frame. Describe what you see in isiZulu first.)" },
+        { type: "text", text: userText },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${frame_base64}` } },
       ],
     });
