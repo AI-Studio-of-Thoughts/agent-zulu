@@ -44,7 +44,8 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
   private context: Array<{ role: string; content: string }> = [];
 
   // Throttle: min interval between frame sends (ms)
-  private minFrameInterval = 4000;
+  private minFrameInterval = 6000;
+  private backoffUntil = 0;
   private lastFrameTime = 0;
   private processing = false;
 
