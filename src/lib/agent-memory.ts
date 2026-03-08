@@ -176,6 +176,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
   sovereignTraining: false,
   isiZuluImmersion: false,
   shadowComparison: false,
+  sovereignBeta: false,
 };
 
 export function loadSettings(): AgentSettings {
