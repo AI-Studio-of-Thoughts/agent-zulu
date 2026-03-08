@@ -20,6 +20,7 @@ export type {
 } from "./types";
 
 export { useAgentProtocol } from "./useAgentProtocol";
-export { ElevenLabsAdapter } from "./adapters/elevenlabs";
-export { GeminiVisionAdapter } from "./adapters/gemini-vision";
 export { HybridAdapter } from "./adapters/hybrid";
+// Individual adapters are internal — import directly if needed:
+// export { ElevenLabsAdapter } from "./adapters/elevenlabs";
+// export { GeminiVisionAdapter } from "./adapters/gemini-vision";
