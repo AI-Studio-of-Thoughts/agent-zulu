@@ -156,6 +156,8 @@ serve(async (req) => {
                               milestones: { type: "array", items: { type: "string" } },
                               goal_name: { type: "string" },
                               milestone: { type: "string" },
+                              specialist: { type: "string", enum: ["cultural", "safety", "memory", "general"] },
+                              task: { type: "string", description: "Task to delegate to specialist." },
                             },
                           },
                         },
