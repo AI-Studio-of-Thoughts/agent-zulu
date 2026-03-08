@@ -10,6 +10,7 @@ import type {
   AvatarState,
   ConnectionStatus,
   ToolHandler,
+  VisionCapabilities,
   VoiceState,
 } from "./types";
 
@@ -17,6 +18,7 @@ interface UseAgentProtocolReturn {
   status: ConnectionStatus;
   voiceState: VoiceState;
   avatarState: AvatarState;
+  vision: VisionCapabilities;
   connect: (credentials: Record<string, unknown>, mediaStream?: MediaStream) => Promise<void>;
   disconnect: () => Promise<void>;
   setMicMuted: (muted: boolean) => void;
@@ -94,6 +96,7 @@ export function useAgentProtocol(
     status,
     voiceState,
     avatarState,
+    vision: adapter.vision,
     connect,
     disconnect,
     setMicMuted,
