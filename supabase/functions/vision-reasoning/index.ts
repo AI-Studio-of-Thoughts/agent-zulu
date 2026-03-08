@@ -94,6 +94,7 @@ serve(async (req) => {
       "point_at_screen", "freeze_frame", "remember_object",
       "search_knowledge_base", "zoom_camera", "alert_user",
       "set_goal", "complete_milestone", "search_goals",
+      "delegate_to_specialist",
     ];
 
     const response = await fetch(
