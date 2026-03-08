@@ -160,7 +160,6 @@ serve(async (req) => {
                                 description:
                                   "Short unique identifier for the object (for remember_object).",
                               },
-                              },
                             },
                           },
                         },
