@@ -10,6 +10,7 @@ import type {
   AvatarState,
   ConnectionStatus,
   ToolHandler,
+  VisionCapabilities,
   VoiceState,
 } from "./types";
 
