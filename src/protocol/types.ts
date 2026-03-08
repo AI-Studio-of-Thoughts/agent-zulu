@@ -86,6 +86,7 @@ export type AgentEvent =
   | { type: "avatar_state"; state: AvatarState }
   | { type: "transcript"; entry: TranscriptEntry }
   | { type: "tool_call"; call: ToolCall }
+  | { type: "proactive"; text: string; confidence: number }
   | { type: "error"; error: string }
   | { type: "status"; status: ConnectionStatus };
 
