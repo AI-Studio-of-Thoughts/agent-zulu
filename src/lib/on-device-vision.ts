@@ -121,8 +121,7 @@ function getCategory(label: string): string {
   return "object";
 }
 
-export class OnDeviceVisionEngine {
-  private classifier: ImageClassificationPipeline | null = null;
+  private classifier: any = null;
   private loading = false;
   private ready = false;
   private _loadProgress = 0;
