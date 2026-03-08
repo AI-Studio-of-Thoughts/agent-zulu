@@ -72,12 +72,17 @@ const AgentInterface = () => {
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const gestureTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Proactive speech + alerts + feedback
+  // Proactive speech + alerts + feedback + reflection
   const [proactiveText, setProactiveText] = useState<string | null>(null);
   const [activeAlert, setActiveAlert] = useState<AlertData | null>(null);
   const [goalReminder, setGoalReminder] = useState<string | null>(null);
+  const [activeReflection, setActiveReflection] = useState<ReflectionEvent | null>(null);
   const alertTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const reflectionTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const transcriptsRef = useRef<Array<{ role: string; text: string }>>([]);
+  const visionDescriptionsRef = useRef<string[]>([]);
+  const gesturesRef = useRef<Array<{ type: string; x: number; y: number; label_zu?: string; label_en?: string }>>([]);
 
   // Settings
   // Settings — moved to top of component
