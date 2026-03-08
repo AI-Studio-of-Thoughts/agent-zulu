@@ -372,6 +372,7 @@ const AgentInterface = () => {
                 isConnected={isConnected}
                 emotion={agent.avatarState.emotion}
                 intensity={agent.avatarState.intensity}
+                localMode={localMode}
               />
             </div>
 
