@@ -281,8 +281,12 @@ const AgentInterface = () => {
         setMediaStream(stream);
         setCameraActive(true);
       } catch {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setMediaStream(stream);
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setMediaStream(stream);
+        } catch {
+          console.warn("No media devices available — proceeding without mic/camera");
+        }
       }
       setMicActive(true);
 
