@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { formatMemoriesForPrompt, formatGoalsForPrompt, loadSettings } from "@/lib/agent-memory";
 import { shadowLog } from "@/lib/shadow-logger";
+import { getOnDeviceEngine } from "@/lib/on-device-vision";
 import type {
   AgentBackendAdapter,
   AgentEventHandler,
@@ -51,6 +52,7 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
   // Latency guard: track recent sovereign latencies
   private recentLatencies: number[] = [];
   private _sovereignDisabledForSession = false;
+  private _onDeviceInitialized = false;
 
   constructor() {
     this._vision = {
@@ -72,6 +74,22 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
     this._status = "connected";
     this.context = [];
     this.emit({ type: "status", status: "connected" });
+
+    // Pre-load on-device model in background
+    if (!this._onDeviceInitialized) {
+      this._onDeviceInitialized = true;
+      const engine = getOnDeviceEngine();
+      engine.initialize().then((ok) => {
+        if (ok) {
+          console.log("[Sovereign] On-device model ready as offline fallback");
+          this.emit({
+            type: "proactive",
+            text: "📱 On-device vision loaded — offline mode available.",
+            confidence: 0.6,
+          });
+        }
+      }).catch(() => {});
+    }
   }
 
   async disconnect(): Promise<void> {
@@ -188,14 +206,23 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
           console.warn("[Sovereign] Falling back to Gemini:", (sovereignErr as Error).message);
 
           const fallbackResult = await this.fallbackToGemini(base64, memoryContext, goalsContext, startTime);
-          if (!fallbackResult) return;
-          data = fallbackResult;
+          if (!fallbackResult) {
+            // Last resort: on-device inference
+            data = await this.fallbackToOnDevice(frame);
+            if (!data) return;
+          } else {
+            data = fallbackResult;
+          }
         }
       } else {
         // Sovereign disabled — go straight to Gemini
         const fallbackResult = await this.fallbackToGemini(base64, memoryContext, goalsContext, startTime);
-        if (!fallbackResult) return;
-        data = fallbackResult;
+        if (!fallbackResult) {
+          data = await this.fallbackToOnDevice(frame);
+          if (!data) return;
+        } else {
+          data = fallbackResult;
+        }
       }
 
       if (!data) return;
@@ -300,6 +327,54 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
 
       return geminiData;
     } catch {
+      return null;
+    }
+  }
+
+  private async fallbackToOnDevice(frame: ImageData | Blob): Promise<any | null> {
+    const engine = getOnDeviceEngine();
+    if (!engine.isReady) return null;
+
+    try {
+      let blob: Blob;
+      if (frame instanceof Blob) {
+        blob = frame;
+      } else {
+        const canvas = new OffscreenCanvas(frame.width, frame.height);
+        const ctx = canvas.getContext("2d")!;
+        ctx.putImageData(frame, 0, 0);
+        blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.7 });
+      }
+
+      const brightness = await engine.analyzeBrightness(blob);
+      if (brightness < 0.15) {
+        return {
+          description: "Kusemnyameni — kodwa ukukhanya kuyeza. (It is dark — but light is coming.)",
+          emotion: "neutral",
+          intensity: 0.2,
+          notes_zu: "Emva kobumnyama kuza ukukhanya.",
+          source: "on-device",
+        };
+      }
+
+      const result = await engine.classifyFrame(blob);
+      console.debug("[OnDevice] Local inference:", result.labels?.[0]?.label);
+
+      shadowLog("on_device_inference", {
+        source: "on-device",
+        top_label: result.labels?.[0]?.label,
+        top_score: result.labels?.[0]?.score,
+      });
+
+      this.emit({
+        type: "proactive",
+        text: "📱 Offline mode — using on-device sovereign vision.",
+        confidence: 0.5,
+      });
+
+      return result;
+    } catch (err) {
+      console.error("[OnDevice] Fallback failed:", err);
       return null;
     }
   }
