@@ -296,8 +296,10 @@ const AgentInterface = () => {
 
   // Autonomous reflection trigger — every 2.5 min of idle when reflection mode on
   const triggerReflection = useCallback(async () => {
-    if (activeReflection) return; // Don't overlap
+    if (activeReflection || isReflecting) return; // Don't overlap
     if (transcriptsRef.current.length === 0 && visionDescriptionsRef.current.length === 0) return;
+
+    setIsReflecting(true);
 
     try {
       const goals = loadGoals().filter((g) => g.active);
@@ -316,6 +318,8 @@ const AgentInterface = () => {
         },
       });
 
+      setIsReflecting(false);
+
       if (error) {
         console.error("[Reflection] Error:", error.message);
         return;
@@ -330,21 +334,39 @@ const AgentInterface = () => {
           overlays: data.overlays || [],
           community_echo: data.community_echo,
           source: data.source || "sovereign-reflection",
+          generated_poem_isizulu: data.generated_poem_isizulu,
+          generated_image_prompt: data.generated_image_prompt,
+          predicted_next_goal: data.predicted_next_goal,
+          prediction_confidence: data.prediction_confidence,
+          isizulu_suggestion: data.isizulu_suggestion,
         };
         setActiveReflection(reflection);
+
+        // Show predictive proactive bubble if high confidence
+        if (data.isizulu_suggestion && (data.prediction_confidence ?? 0) > 0.7) {
+          setTimeout(() => {
+            setProactiveText(data.isizulu_suggestion);
+            setTimeout(() => setProactiveText(null), 8000);
+          }, 3000);
+        }
+
         shadowLog("reflection_triggered", {
           proverb: reflection.proverb,
           overlay_count: reflection.overlays.length,
           has_community: !!reflection.community_echo,
+          has_poem: !!reflection.generated_poem_isizulu,
+          has_prediction: !!reflection.predicted_next_goal,
+          prediction_confidence: reflection.prediction_confidence,
           sovereign_beta: settings.sovereignBeta,
         });
-        // Auto-dismiss after 20s
-        setTimeout(() => setActiveReflection(null), 20000);
+        // Auto-dismiss after 25s (longer for richer content)
+        setTimeout(() => setActiveReflection(null), 25000);
       }
     } catch (err) {
+      setIsReflecting(false);
       console.error("[Reflection] Failed:", err);
     }
-  }, [activeReflection, settings]);
+  }, [activeReflection, isReflecting, settings]);
 
   // Idle reflection timer
   useEffect(() => {
