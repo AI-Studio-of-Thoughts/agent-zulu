@@ -110,6 +110,7 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
     if (now - this.lastFrameTime < this.minFrameInterval) return;
     if (this.processing) return;
     if (this._status !== "connected") return;
+    if (now < this.backoffUntil) return; // rate-limit backoff
 
     this.lastFrameTime = now;
     this.processing = true;
