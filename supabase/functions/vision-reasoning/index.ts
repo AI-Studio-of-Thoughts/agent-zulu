@@ -2,8 +2,12 @@
  * Vision Reasoning Edge Function
  *
  * Accepts a base64-encoded camera frame + conversation context,
- * sends to Gemini 2.5 Pro via Lovable AI gateway for visual reasoning,
+ * sends to Gemini 2.5 Flash via Lovable AI gateway for visual reasoning,
  * returns structured response: scene description, emotion, optional tool calls.
+ *
+ * Available tools for Gemini to invoke:
+ * - point_at_screen(x, y, description): Highlight a location in camera preview
+ * - freeze_frame(): Pause vision loop for closer inspection
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,13 +18,19 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are Agent Zulu — a sovereign, embodied AI co-pilot with real-time visual perception. You observe the user's camera feed and respond naturally.
+const SYSTEM_PROMPT = `You are Agent Zulu — a sovereign, embodied AI co-pilot with real-time visual perception, rooted in KwaZulu-Natal. You observe the user's camera feed and respond naturally in English or isiZulu as appropriate.
 
 When you see something interesting, comment on it conversationally. Track changes between frames. Be concise (1-2 sentences max).
 
 You MUST call the "vision_response" tool with your structured response. Always include emotion and intensity based on what you observe:
 - neutral (nothing notable), thinking (analyzing something complex), alert (something unexpected), empathetic (human emotion detected), speaking (delivering insight)
-- intensity: 0.0-1.0 (how strongly the emotion applies)`;
+- intensity: 0.0-1.0 (how strongly the emotion applies)
+
+You can also trigger ACTION tools via the tool_calls array in your response:
+- point_at_screen: Use when referring to a specific object/area in the frame. Provide normalized x,y coordinates (0-1).
+- freeze_frame: Use when you want to inspect the current frame more closely, or when something important appears briefly.
+
+Only trigger action tools when genuinely useful — don't overuse them.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -45,14 +55,12 @@ serve(async (req) => {
       );
     }
 
-    // Build messages with image
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
     ];
 
-    // Include recent context if provided (for continuity)
     if (context && Array.isArray(context)) {
-      messages.push(...context.slice(-6)); // Keep last 6 exchanges
+      messages.push(...context.slice(-6));
     }
 
     messages.push({
@@ -80,7 +88,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages,
-          max_tokens: 300,
+          max_tokens: 400,
           temperature: 0.7,
           tools: [
             {
@@ -88,7 +96,7 @@ serve(async (req) => {
               function: {
                 name: "vision_response",
                 description:
-                  "Structured response to a camera frame observation.",
+                  "Structured response to a camera frame observation, with optional action tool triggers.",
                 parameters: {
                   type: "object",
                   properties: {
@@ -116,12 +124,35 @@ serve(async (req) => {
                     tool_calls: {
                       type: "array",
                       description:
-                        "Optional tool calls the agent wants to trigger.",
+                        "Optional action tool calls. Use sparingly and only when genuinely useful.",
                       items: {
                         type: "object",
                         properties: {
-                          name: { type: "string" },
-                          parameters: { type: "object" },
+                          name: {
+                            type: "string",
+                            enum: ["point_at_screen", "freeze_frame"],
+                            description: "Tool to invoke.",
+                          },
+                          parameters: {
+                            type: "object",
+                            properties: {
+                              x: {
+                                type: "number",
+                                description:
+                                  "Normalized X coordinate 0-1 (for point_at_screen).",
+                              },
+                              y: {
+                                type: "number",
+                                description:
+                                  "Normalized Y coordinate 0-1 (for point_at_screen).",
+                              },
+                              description: {
+                                type: "string",
+                                description:
+                                  "Label for what you're pointing at (for point_at_screen).",
+                              },
+                            },
+                          },
                         },
                         required: ["name"],
                       },
@@ -161,7 +192,6 @@ serve(async (req) => {
 
     const data = await response.json();
 
-    // Extract structured tool call response
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     let result;
 

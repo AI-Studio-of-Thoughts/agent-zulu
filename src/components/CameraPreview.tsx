@@ -1,13 +1,29 @@
 import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { VideoOff } from "lucide-react";
+import ToolOverlay from "./ToolOverlay";
+
+interface PointerData {
+  x: number;
+  y: number;
+  description: string;
+}
 
 interface CameraPreviewProps {
   stream: MediaStream | null;
   isActive: boolean;
+  pointer?: PointerData | null;
+  frozenFrame?: string | null;
+  onDismissFrozen?: () => void;
 }
 
-const CameraPreview = ({ stream, isActive }: CameraPreviewProps) => {
+const CameraPreview = ({
+  stream,
+  isActive,
+  pointer = null,
+  frozenFrame = null,
+  onDismissFrozen,
+}: CameraPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -37,11 +53,18 @@ const CameraPreview = ({ stream, isActive }: CameraPreviewProps) => {
         </div>
       )}
 
+      {/* Tool overlays rendered on top of camera feed */}
+      <ToolOverlay
+        pointer={pointer}
+        frozenFrame={frozenFrame}
+        onDismissFrozen={onDismissFrozen}
+      />
+
       {/* Border glow */}
       <div className="absolute inset-0 rounded-lg border border-primary/20 pointer-events-none" />
 
       {/* Label */}
-      <div className="absolute bottom-1 left-2 font-mono text-[9px] tracking-widest text-muted-foreground uppercase">
+      <div className="absolute bottom-1 left-2 font-mono text-[9px] tracking-widest text-muted-foreground uppercase z-10">
         You
       </div>
     </motion.div>
