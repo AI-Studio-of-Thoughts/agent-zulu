@@ -116,5 +116,6 @@ All in `src/index.css` as HSL CSS variables. Referenced via Tailwind config. Nev
 | Secret | Purpose |
 |--------|---------|
 | `ELEVENLABS_API_KEY` | ElevenLabs API access (edge function only) |
+| `LOVABLE_API_KEY` | Lovable AI gateway for Gemini vision reasoning |
 
 All secrets are managed through Lovable Cloud. Never in client code.
