@@ -44,11 +44,19 @@ export async function shadowLog(
 
   // Private session logs (sovereign training)
   if (settings.sovereignTraining) {
+    // Get current user id for tagging
+    let userId: string | null = null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id ?? null;
+    } catch {}
+
     try {
       const { error } = await (supabase as any).from("session_logs").insert({
         session_id: sessionId,
         event_type: eventType,
         payload: sanitized,
+        user_id: userId,
       });
       if (error) throw error;
     } catch {
@@ -57,6 +65,7 @@ export async function shadowLog(
         session_id: sessionId,
         event_type: eventType,
         payload: sanitized,
+        user_id: userId,
       });
     }
   }
