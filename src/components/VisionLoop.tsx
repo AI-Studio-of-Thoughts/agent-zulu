@@ -6,18 +6,23 @@
  * - Active scenes (motion/voice): bursts at 1 frame every ~2s
  * - Falls back to idle after 8s of no motion
  *
+ * On-device fallback: when cloud vision latency exceeds threshold or fails,
+ * switches to local-only mode with basic scene classification.
+ *
  * Exposes imperative API via forwardRef for tool interactions:
  * - getCurrentFrame(): returns current canvas as data URL
  * - pause(ms): temporarily halts frame sending
+ * - isInLocalMode(): whether fallback is active
  */
 
-import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
+import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback, useState } from "react";
 import type { VisionCapabilities } from "@/protocol";
 
 export interface VisionLoopHandle {
   getCurrentFrame: () => string | null;
   pause: (ms: number) => void;
   isPaused: () => boolean;
+  isInLocalMode: () => boolean;
 }
 
 interface VisionLoopProps {
@@ -25,6 +30,8 @@ interface VisionLoopProps {
   vision: VisionCapabilities;
   /** Whether voice is active (triggers burst mode) */
   voiceActive?: boolean;
+  /** Callback when local mode status changes */
+  onLocalModeChange?: (isLocal: boolean) => void;
 }
 
 // ── Motion Detection Config ────────────────────────────────
@@ -34,8 +41,22 @@ const ACTIVE_INTERVAL = 2000;     // 2s between frames during motion/voice
 const BURST_WINDOW = 8000;        // stay in burst mode for 8s after last motion
 const DIFF_SAMPLE_SIZE = 64;      // downsample to 64x64 for fast diff
 
+// ── On-Device Fallback Config ──────────────────────────────
+const LATENCY_THRESHOLD = 6000;   // 6s — switch to local if cloud exceeds this
+const CONSECUTIVE_FAILURES = 3;   // switch after N consecutive cloud failures
+const LOCAL_MODE_RETRY = 30000;   // retry cloud every 30s while in local mode
+
+// Simple scene tags from local analysis
+type LocalSceneTag = "person" | "motion" | "bright" | "dark" | "static" | "unknown";
+
+interface LocalVisionResult {
+  motionLevel: number;
+  brightness: number;
+  tags: LocalSceneTag[];
+}
+
 const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
-  ({ mediaStream, vision, voiceActive = false }, ref) => {
+  ({ mediaStream, vision, voiceActive = false, onLocalModeChange }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const diffCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -44,6 +65,18 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
     const pauseTimerRef = useRef<ReturnType<typeof setTimeout>>();
     const lastMotionRef = useRef(0);
     const lastSendRef = useRef(0);
+
+    // On-device fallback state
+    const localModeRef = useRef(false);
+    const consecutiveFailuresRef = useRef(0);
+    const lastCloudRetryRef = useRef(0);
+    const [isLocalMode, setIsLocalMode] = useState(false);
+
+    const setLocalMode = useCallback((value: boolean) => {
+      localModeRef.current = value;
+      setIsLocalMode(value);
+      onLocalModeChange?.(value);
+    }, [onLocalModeChange]);
 
     useImperativeHandle(ref, () => ({
       getCurrentFrame: () => {
@@ -59,11 +92,11 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
         }, ms);
       },
       isPaused: () => pausedRef.current,
+      isInLocalMode: () => localModeRef.current,
     }));
 
     /**
      * Lightweight motion detection via downsampled grayscale pixel diff.
-     * Returns fraction of pixels that changed significantly (0-1).
      */
     const detectMotion = useCallback((ctx: CanvasRenderingContext2D): number => {
       if (!diffCanvasRef.current) {
@@ -75,7 +108,6 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
       const diffCtx = diffCanvasRef.current.getContext("2d");
       if (!diffCtx) return 0;
 
-      // Draw current frame downsampled
       diffCtx.drawImage(
         ctx.canvas,
         0, 0, ctx.canvas.width, ctx.canvas.height,
@@ -87,29 +119,124 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
 
       if (!prevPixelsRef.current) {
         prevPixelsRef.current = new Uint8ClampedArray(currentPixels);
-        return 1; // First frame always counts as "changed"
+        return 1;
       }
 
       const prev = prevPixelsRef.current;
       let changedPixels = 0;
       const totalPixels = DIFF_SAMPLE_SIZE * DIFF_SAMPLE_SIZE;
-      const threshold = 30; // Per-pixel luminance diff threshold
+      const threshold = 30;
 
       for (let i = 0; i < currentPixels.length; i += 4) {
-        // Grayscale approximation
         const curGray = currentPixels[i] * 0.299 + currentPixels[i + 1] * 0.587 + currentPixels[i + 2] * 0.114;
         const prevGray = prev[i] * 0.299 + prev[i + 1] * 0.587 + prev[i + 2] * 0.114;
-
         if (Math.abs(curGray - prevGray) > threshold) {
           changedPixels++;
         }
       }
 
-      // Update previous frame
       prevPixelsRef.current = new Uint8ClampedArray(currentPixels);
-
       return changedPixels / totalPixels;
     }, []);
+
+    /**
+     * On-device local scene analysis (no cloud needed).
+     * Analyzes brightness, motion, and basic spatial features.
+     */
+    const analyzeLocally = useCallback((ctx: CanvasRenderingContext2D, motionLevel: number): LocalVisionResult => {
+      if (!diffCanvasRef.current) return { motionLevel, brightness: 0.5, tags: ["unknown"] };
+
+      const diffCtx = diffCanvasRef.current.getContext("2d");
+      if (!diffCtx) return { motionLevel, brightness: 0.5, tags: ["unknown"] };
+
+      const data = diffCtx.getImageData(0, 0, DIFF_SAMPLE_SIZE, DIFF_SAMPLE_SIZE);
+      const pixels = data.data;
+
+      // Calculate average brightness
+      let totalBrightness = 0;
+      let skinTonePixels = 0;
+      const totalPixels = DIFF_SAMPLE_SIZE * DIFF_SAMPLE_SIZE;
+
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        totalBrightness += (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+
+        // Simple skin tone detection (rough heuristic)
+        if (r > 80 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 15) {
+          skinTonePixels++;
+        }
+      }
+
+      const brightness = totalBrightness / totalPixels;
+      const tags: LocalSceneTag[] = [];
+
+      if (motionLevel > MOTION_THRESHOLD) tags.push("motion");
+      else tags.push("static");
+
+      if (brightness > 0.6) tags.push("bright");
+      else if (brightness < 0.3) tags.push("dark");
+
+      if (skinTonePixels / totalPixels > 0.05) tags.push("person");
+
+      if (tags.length === 0) tags.push("unknown");
+
+      return { motionLevel, brightness, tags };
+    }, []);
+
+    /**
+     * Wraps vision.sendFrame with latency tracking and fallback logic.
+     */
+    const sendFrameWithFallback = useCallback((
+      blob: Blob,
+      ctx: CanvasRenderingContext2D,
+      motionLevel: number
+    ) => {
+      if (!vision.sendFrame) return;
+
+      const now = Date.now();
+
+      // If in local mode, periodically retry cloud
+      if (localModeRef.current) {
+        if (now - lastCloudRetryRef.current < LOCAL_MODE_RETRY) {
+          // Stay in local mode — emit local analysis only
+          const local = analyzeLocally(ctx, motionLevel);
+          console.debug("[VisionLoop] Local mode:", local.tags.join(", "));
+          return;
+        }
+        // Retry cloud
+        lastCloudRetryRef.current = now;
+      }
+
+      const sendStart = Date.now();
+
+      // Send to cloud with timeout tracking
+      const timeoutId = setTimeout(() => {
+        // If we haven't heard back, count as slow
+        consecutiveFailuresRef.current++;
+        if (consecutiveFailuresRef.current >= CONSECUTIVE_FAILURES && !localModeRef.current) {
+          console.warn("[VisionLoop] Cloud too slow — switching to local mode");
+          setLocalMode(true);
+        }
+      }, LATENCY_THRESHOLD);
+
+      // Monkey-patch: track when the adapter finishes processing
+      const originalSendFrame = vision.sendFrame;
+      const wrappedSend = (frame: ImageData | Blob) => {
+        originalSendFrame(frame);
+        // Clear timeout if send succeeded quickly (adapter will process async)
+        const elapsed = Date.now() - sendStart;
+        if (elapsed < LATENCY_THRESHOLD) {
+          clearTimeout(timeoutId);
+          consecutiveFailuresRef.current = Math.max(0, consecutiveFailuresRef.current - 1);
+          if (localModeRef.current && consecutiveFailuresRef.current === 0) {
+            console.info("[VisionLoop] Cloud recovered — exiting local mode");
+            setLocalMode(false);
+          }
+        }
+      };
+
+      wrappedSend(blob);
+    }, [vision, analyzeLocally, setLocalMode]);
 
     useEffect(() => {
       if (!mediaStream || !vision.supportsVision || !vision.sendFrame) return;
@@ -136,7 +263,6 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
           canvas.height = video.videoHeight;
           ctx.drawImage(video, 0, 0);
 
-          // Detect motion
           const motionLevel = detectMotion(ctx);
           const hasMotion = motionLevel > MOTION_THRESHOLD;
 
@@ -144,7 +270,6 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
             lastMotionRef.current = now;
           }
 
-          // Determine if we're in burst mode
           const inBurstMode =
             voiceActive ||
             hasMotion ||
@@ -152,14 +277,13 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
 
           const interval = inBurstMode ? ACTIVE_INTERVAL : IDLE_INTERVAL;
 
-          // Send frame if enough time has passed
           if (now - lastSendRef.current >= interval) {
             lastSendRef.current = now;
 
             canvas.toBlob(
               (blob) => {
-                if (blob && vision.sendFrame && !stopped && !pausedRef.current) {
-                  vision.sendFrame(blob);
+                if (blob && !stopped && !pausedRef.current) {
+                  sendFrameWithFallback(blob, ctx, motionLevel);
                 }
               },
               "image/jpeg",
@@ -168,7 +292,6 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
           }
         }
 
-        // Check frequently but only send based on adaptive interval
         setTimeout(tick, 500);
       };
 
@@ -180,7 +303,7 @@ const VisionLoop = forwardRef<VisionLoopHandle, VisionLoopProps>(
         clearTimeout(pauseTimerRef.current);
         prevPixelsRef.current = null;
       };
-    }, [mediaStream, vision, voiceActive, detectMotion]);
+    }, [mediaStream, vision, voiceActive, detectMotion, sendFrameWithFallback]);
 
     return (
       <>

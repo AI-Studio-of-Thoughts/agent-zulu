@@ -53,6 +53,7 @@ const AgentInterface = () => {
   // Tool overlay state
   const [pointer, setPointer] = useState<PointerData | null>(null);
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  const [localMode, setLocalMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -371,6 +372,7 @@ const AgentInterface = () => {
                 isConnected={isConnected}
                 emotion={agent.avatarState.emotion}
                 intensity={agent.avatarState.intensity}
+                localMode={localMode}
               />
             </div>
 
@@ -402,7 +404,7 @@ const AgentInterface = () => {
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
             />
-            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} />
+            <VisionLoop ref={visionLoopRef} mediaStream={mediaStream} vision={agent.vision} voiceActive={isSpeaking || isListening} onLocalModeChange={setLocalMode} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}

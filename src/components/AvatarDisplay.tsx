@@ -8,6 +8,7 @@ interface AvatarDisplayProps {
   isConnected: boolean;
   emotion?: AvatarEmotion;
   intensity?: number;
+  localMode?: boolean;
 }
 
 const AvatarDisplay = ({
@@ -16,6 +17,7 @@ const AvatarDisplay = ({
   isConnected,
   emotion = "neutral",
   intensity = 0.2,
+  localMode = false,
 }: AvatarDisplayProps) => {
   // Map emotion to glow color intensity
   const glowIntensity = intensity;
@@ -114,6 +116,8 @@ const AvatarDisplay = ({
           <span className="text-primary text-glow">Speaking</span>
         ) : isListening ? (
           <span className="text-primary/70">Listening…</span>
+        ) : localMode ? (
+          <span className="text-accent/80">Local mode</span>
         ) : emotion === "thinking" ? (
           <span className="text-accent">Thinking…</span>
         ) : isConnected ? (
