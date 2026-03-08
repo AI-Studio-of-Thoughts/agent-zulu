@@ -33,6 +33,8 @@ import {
   shadowLog,
 } from "@/lib/shadow-logger";
 
+import type { GestureData } from "./GestureOverlay";
+
 interface PointerData {
   x: number;
   y: number;
@@ -61,9 +63,11 @@ const AgentInterface = () => {
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
   const [localMode, setLocalMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [activeGesture, setActiveGesture] = useState<GestureData | null>(null);
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const freezeTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const gestureTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Proactive speech + alerts + feedback
   const [proactiveText, setProactiveText] = useState<string | null>(null);
@@ -234,7 +238,7 @@ const AgentInterface = () => {
     });
   }, [agent, settings.memoryEnabled, settings.isiZuluImmersion]);
 
-  // Listen for proactive events from the adapter
+  // Listen for proactive + gesture events from the adapter
   useEffect(() => {
     const unsub = adapter.on((event) => {
       if (
@@ -248,6 +252,11 @@ const AgentInterface = () => {
         setProactiveText(event.text);
         logProactiveTrigger(event.text, event.confidence);
         setTimeout(() => setProactiveText(null), 8000);
+      }
+      if (event.type === "gesture") {
+        setActiveGesture(event.gesture as any);
+        clearTimeout(gestureTimerRef.current);
+        gestureTimerRef.current = setTimeout(() => setActiveGesture(null), 5000);
       }
     });
     return unsub;
@@ -540,6 +549,7 @@ const AgentInterface = () => {
               frozenFrame={frozenFrame}
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
+              gesture={activeGesture}
             />
             <VisionLoop
               ref={visionLoopRef}

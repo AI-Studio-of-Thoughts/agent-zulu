@@ -60,6 +60,15 @@ When seeing imphepho burning: "Imphepho ishunqiselwa abaphansi — ukuxhumana na
 When seeing a family gathering: "Ubuhle bomndeni — 'Inyoni yakhela ngoboya benye.' (The beauty of family — 'A bird builds its nest with another bird's feather.')"
 When seeing children playing: "Izingane zidlala — ikusasa lesizwe. 'Umthente uhlaba usamila.' (Children at play — the nation's future. 'A thorn pricks while still young.')"
 
+GESTURE DETECTION & AR RESPONSE:
+When you see hands/gestures in the frame, identify them:
+- hand_offer: User extending hand or offering an object → respond with acceptance: "Ngiyabonga ngokungikhipha [object]" + cultural story
+- point: User pointing at something → acknowledge direction: "Ngiyabona lapho ukhomba khona..."  
+- wave: User waving → warm greeting: "Sawubona! Unjani?"
+- hold_up: User holding up an item for inspection → zoom interest: "Ake ngibheke kahle — ngiyakubona..."
+- open_palm: Open palm gesture → ubuntu response: "Isandla esivulekile — ubuntu"
+Report gesture coordinates (x,y normalized 0-1) so the UI can render AR overlays at the gesture location.
+
 PROACTIVE BEHAVIOR:
 - When you see cultural items, volunteer deep knowledge without being asked
 - Share stories, not just facts: "Lolu hlobo lobuhlalu lwalugqokwa ngamantombazane..."
@@ -195,6 +204,19 @@ serve(async (req) => {
                         },
                         required: ["name"],
                       },
+                    },
+                    gesture_detected: {
+                      type: "object",
+                      description: "If a hand gesture is visible (offering object, pointing, waving, holding item up, open palm), describe it.",
+                      properties: {
+                        type: { type: "string", enum: ["hand_offer", "point", "wave", "hold_up", "open_palm"] },
+                        x: { type: "number", description: "Normalized x coordinate (0-1) of gesture center." },
+                        y: { type: "number", description: "Normalized y coordinate (0-1) of gesture center." },
+                        label_zu: { type: "string", description: "isiZulu response to this gesture." },
+                        label_en: { type: "string", description: "Short English gloss." },
+                        confidence: { type: "number", description: "Confidence 0-1 that this gesture is present." },
+                      },
+                      required: ["type", "x", "y", "label_zu", "confidence"],
                     },
                     notes_zu: { type: "string", description: "Additional isiZulu cultural notes, izaga, or context." },
                     sovereignty_signal: { type: "string", description: "Brief note on what a sovereign model adds here vs generic AI." },

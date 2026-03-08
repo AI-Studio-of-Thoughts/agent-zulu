@@ -11,6 +11,7 @@ export type {
   AvatarEmotion,
   AvatarState,
   ConnectionStatus,
+  GestureDetected,
   SessionConfig,
   ToolCall,
   ToolHandler,
