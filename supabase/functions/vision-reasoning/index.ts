@@ -133,7 +133,7 @@ serve(async (req) => {
                         properties: {
                           name: {
                             type: "string",
-                            enum: ["point_at_screen", "freeze_frame"],
+                            enum: ["point_at_screen", "freeze_frame", "remember_object"],
                             description: "Tool to invoke.",
                           },
                           parameters: {
@@ -152,7 +152,13 @@ serve(async (req) => {
                               description: {
                                 type: "string",
                                 description:
-                                  "Label for what you're pointing at (for point_at_screen).",
+                                  "Label for what you're pointing at (for point_at_screen), or detailed description (for remember_object).",
+                              },
+                              name: {
+                                type: "string",
+                                description:
+                                  "Short unique identifier for the object (for remember_object).",
+                              },
                               },
                             },
                           },
