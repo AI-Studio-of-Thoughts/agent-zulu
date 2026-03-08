@@ -612,10 +612,12 @@ const AgentInterface = () => {
                 isListening={isListening}
                 isSpeaking={isSpeaking}
                 isConnected={isConnected}
-                emotion={agent.avatarState.emotion}
-                intensity={agent.avatarState.intensity}
+                emotion={isReflecting ? "thinking" : agent.avatarState.emotion}
+                intensity={isReflecting ? 0.9 : agent.avatarState.intensity}
                 localMode={localMode}
               />
+              {/* Thinking bubble during reflection */}
+              <ThinkingBubble visible={isReflecting} />
             </div>
 
             {/* Proactive suggestion bubble with feedback */}
