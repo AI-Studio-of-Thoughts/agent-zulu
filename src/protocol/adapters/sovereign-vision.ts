@@ -331,6 +331,54 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
     }
   }
 
+  private async fallbackToOnDevice(frame: ImageData | Blob): Promise<any | null> {
+    const engine = getOnDeviceEngine();
+    if (!engine.isReady) return null;
+
+    try {
+      let blob: Blob;
+      if (frame instanceof Blob) {
+        blob = frame;
+      } else {
+        const canvas = new OffscreenCanvas(frame.width, frame.height);
+        const ctx = canvas.getContext("2d")!;
+        ctx.putImageData(frame, 0, 0);
+        blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.7 });
+      }
+
+      const brightness = await engine.analyzeBrightness(blob);
+      if (brightness < 0.15) {
+        return {
+          description: "Kusemnyameni — kodwa ukukhanya kuyeza. (It is dark — but light is coming.)",
+          emotion: "neutral",
+          intensity: 0.2,
+          notes_zu: "Emva kobumnyama kuza ukukhanya.",
+          source: "on-device",
+        };
+      }
+
+      const result = await engine.classifyFrame(blob);
+      console.debug("[OnDevice] Local inference:", result.labels?.[0]?.label);
+
+      shadowLog("on_device_inference", {
+        source: "on-device",
+        top_label: result.labels?.[0]?.label,
+        top_score: result.labels?.[0]?.score,
+      });
+
+      this.emit({
+        type: "proactive",
+        text: "📱 Offline mode — using on-device sovereign vision.",
+        confidence: 0.5,
+      });
+
+      return result;
+    } catch (err) {
+      console.error("[OnDevice] Fallback failed:", err);
+      return null;
+    }
+  }
+
   private async blobToBase64(frame: ImageData | Blob): Promise<string> {
     let blob: Blob;
     if (frame instanceof Blob) {
