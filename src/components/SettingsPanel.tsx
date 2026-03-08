@@ -290,4 +290,17 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
   );
 };
 
+const AnalyticsLink = () => {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate("/analytics")}
+      className="flex items-center gap-2 w-full py-2 px-3 rounded-lg bg-primary/10 text-primary/70 hover:text-primary hover:bg-primary/20 transition-colors font-mono text-[10px] tracking-wider"
+    >
+      <BarChart3 className="w-3 h-3" />
+      SOVEREIGN ANALYTICS
+    </button>
+  );
+};
+
 export default SettingsPanel;
