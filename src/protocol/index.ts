@@ -12,6 +12,8 @@ export type {
   AvatarState,
   ConnectionStatus,
   GestureDetected,
+  ReflectionEvent,
+  ReflectionOverlayItem,
   SessionConfig,
   ToolCall,
   ToolHandler,
