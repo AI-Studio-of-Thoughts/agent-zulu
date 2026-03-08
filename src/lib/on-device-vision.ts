@@ -186,9 +186,9 @@ function getCategory(label: string): string {
         reader.readAsDataURL(imageBlob);
       });
 
-      const results = await this.classifier(dataUrl, { topk: 3 });
-      const topResult = Array.isArray(results) ? results[0] : results;
-      const allResults = Array.isArray(results) ? results : [results];
+      const results: any = await this.classifier(dataUrl, { top_k: 3 });
+      const resultArray = Array.isArray(results) ? results : [results];
+      const topResult = resultArray[0];
 
       const topLabel = topResult?.label || "unknown";
       const topScore = topResult?.score || 0;
