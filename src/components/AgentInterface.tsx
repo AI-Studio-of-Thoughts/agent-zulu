@@ -185,6 +185,7 @@ const AgentInterface = () => {
             </div>
 
             <CameraPreview stream={mediaStream} isActive={cameraActive} />
+            <VisionLoop mediaStream={mediaStream} vision={agent.vision} />
             <MicIndicator stream={mediaStream} isActive={micActive} onToggle={toggleMic} />
 
             {/* End session button */}

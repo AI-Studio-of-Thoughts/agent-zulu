@@ -96,6 +96,7 @@ export function useAgentProtocol(
     status,
     voiceState,
     avatarState,
+    vision: adapter.vision,
     connect,
     disconnect,
     setMicMuted,
