@@ -44,12 +44,28 @@ Adapters emit `AgentEvent` objects:
 
 Converts adapter events into React state. Components use this hook exclusively.
 
-### `adapters/elevenlabs.ts` — Current Backend
+### `adapters/elevenlabs.ts` — Voice Backend
 
 - Uses `@11labs/client` `Conversation.startSession()`
 - Maps ElevenLabs `onModeChange` to protocol `VoiceState`
 - Derives `AvatarState` from voice state (speaking → speaking emotion, etc.)
 - Polls `getInputVolume()` / `getOutputVolume()` for real-time levels
+
+### `adapters/gemini-vision.ts` — Vision Reasoning Backend
+
+- Sends camera frames (base64 JPEG) to `vision-reasoning` edge function
+- Edge function proxies to Gemini 2.5 Flash via Lovable AI gateway
+- Uses structured output (tool calling) for emotion + description + tool calls
+- Throttled to ~1 frame every 4 seconds to avoid API hammering
+- Maintains short-term conversation context for frame-to-frame continuity
+
+### `adapters/hybrid.ts` — Merged Orchestrator
+
+- Combines ElevenLabs (voice) + Gemini (vision) into a single `AgentBackendAdapter`
+- Voice drives connection status and primary interaction
+- Vision avatar state shown when voice is idle; voice avatar takes priority when speaking
+- Tool calls from both backends are forwarded to the cockpit
+- One-line swap: change `HybridAdapter` back to `ElevenLabsAdapter` for voice-only mode
 
 ---
 
