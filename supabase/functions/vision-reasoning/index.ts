@@ -66,7 +66,7 @@ serve(async (req) => {
   }
 
   try {
-    const { frame_base64, context, memory_context, goals_context } = await req.json();
+    const { frame_base64, context, memory_context, goals_context, isizulu_immersion } = await req.json();
 
     if (!frame_base64) {
       return new Response(
@@ -75,7 +75,11 @@ serve(async (req) => {
       );
     }
 
-    const systemContent = SYSTEM_PROMPT + (memory_context || "") + (goals_context || "");
+    const immersionNote = isizulu_immersion
+      ? "\n\nISIZULU IMMERSION MODE: The user prefers isiZulu-first responses. Write your description and proactive_suggestion primarily in isiZulu, with brief English gloss in parentheses when helpful. Use warm, natural isiZulu register."
+      : "";
+
+    const systemContent = SYSTEM_PROMPT + immersionNote + (memory_context || "") + (goals_context || "");
 
     const messages: any[] = [
       { role: "system", content: systemContent },
