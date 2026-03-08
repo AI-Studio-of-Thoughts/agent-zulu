@@ -270,6 +270,9 @@ const SettingsPanel = ({ onSettingsChange }: SettingsPanelProps) => {
                   </div>
                 )}
 
+                {/* Analytics link */}
+                <AnalyticsLink />
+
                 {/* Clear Data */}
                 <button
                   onClick={handleClearMemory}
