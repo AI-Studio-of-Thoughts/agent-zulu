@@ -102,6 +102,7 @@ serve(async (req) => {
       "search_knowledge_base", "zoom_camera", "alert_user",
       "set_goal", "complete_milestone", "search_goals",
       "delegate_to_specialist", "describe_in_isizulu",
+      "get_weather", "describe_what_i_see",
     ];
 
     const response = await fetch(
@@ -166,6 +167,7 @@ serve(async (req) => {
                               specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
                               task: { type: "string", description: "Task to delegate to specialist." },
                               subject: { type: "string", description: "Subject for describe_in_isizulu." },
+                              location: { type: "string", description: "Location for weather lookup (city name)." },
                             },
                           },
                         },

@@ -59,6 +59,7 @@ const AgentInterface = () => {
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [sessionDuration, setSessionDuration] = useState(0);
   const [showStartScreen, setShowStartScreen] = useState(true);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const visionLoopRef = useRef<VisionLoopHandle>(null);
 
@@ -243,6 +244,42 @@ const AgentInterface = () => {
           return `[isiZulu]: ${result}${data?.isizulu_note ? `\n${data.isizulu_note}` : ""}`;
         } catch {
           return "Heritage specialist unavailable.";
+        }
+      },
+      get_weather: async (params) => {
+        const location = String(params.location ?? "Durban");
+        try {
+          const { data, error } = await supabase.functions.invoke("weather-lookup", {
+            body: { location },
+          });
+          if (error) return `Weather error: ${error.message}`;
+          if (data?.error) return `Weather: ${data.error}`;
+          const immersion = settings.isiZuluImmersion;
+          return immersion
+            ? `${data.summary_zu}\n(${data.summary_en})`
+            : data.summary_en;
+        } catch {
+          return "Weather lookup failed. Please try again.";
+        }
+      },
+      describe_what_i_see: async () => {
+        const frame = visionLoopRef.current?.getCurrentFrame();
+        if (!frame) return "Camera is not active. I cannot see anything right now.";
+        try {
+          const base64 = frame.split(",")[1];
+          const { data, error } = await supabase.functions.invoke("vision-reasoning", {
+            body: {
+              frame_base64: base64,
+              context: [],
+              memory_context: "",
+              goals_context: "",
+              isizulu_immersion: settings.isiZuluImmersion,
+            },
+          });
+          if (error) return `Vision error: ${error.message}`;
+          return data?.description ?? "I can see the scene but couldn't describe it.";
+        } catch {
+          return "Vision processing failed.";
         }
       },
     });
@@ -499,6 +536,30 @@ const AgentInterface = () => {
     }
   }, [mediaStream, micActive, agent]);
 
+  const switchCamera = useCallback(async () => {
+    if (!mediaStream) return;
+    const newMode = facingMode === "user" ? "environment" : "user";
+    try {
+      // Stop existing video tracks
+      mediaStream.getVideoTracks().forEach((t) => t.stop());
+      // Get new video stream with flipped facing
+      const newVideoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: newMode } },
+      });
+      // Replace video track in existing stream
+      const newVideoTrack = newVideoStream.getVideoTracks()[0];
+      const audioTracks = mediaStream.getAudioTracks();
+      const combinedStream = new MediaStream([...audioTracks, newVideoTrack]);
+      setMediaStream(combinedStream);
+      setFacingMode(newMode);
+    } catch (err) {
+      console.error("Failed to switch camera:", err);
+      toast.error("Camera switch failed", {
+        description: "Could not switch to " + (newMode === "environment" ? "rear" : "front") + " camera.",
+      });
+    }
+  }, [mediaStream, facingMode]);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background">
       {/* Subtle background grid */}
@@ -692,6 +753,8 @@ const AgentInterface = () => {
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
               gesture={activeGesture}
+              onSwitchCamera={switchCamera}
+              facingMode={facingMode}
             />
             <VisionLoop
               ref={visionLoopRef}
