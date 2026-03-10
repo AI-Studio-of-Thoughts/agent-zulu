@@ -753,6 +753,8 @@ const AgentInterface = () => {
               onDismissFrozen={dismissFrozen}
               zoomLevel={zoomLevel}
               gesture={activeGesture}
+              onSwitchCamera={switchCamera}
+              facingMode={facingMode}
             />
             <VisionLoop
               ref={visionLoopRef}
