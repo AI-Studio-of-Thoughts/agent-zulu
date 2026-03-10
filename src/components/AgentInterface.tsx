@@ -536,6 +536,30 @@ const AgentInterface = () => {
     }
   }, [mediaStream, micActive, agent]);
 
+  const switchCamera = useCallback(async () => {
+    if (!mediaStream) return;
+    const newMode = facingMode === "user" ? "environment" : "user";
+    try {
+      // Stop existing video tracks
+      mediaStream.getVideoTracks().forEach((t) => t.stop());
+      // Get new video stream with flipped facing
+      const newVideoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: newMode } },
+      });
+      // Replace video track in existing stream
+      const newVideoTrack = newVideoStream.getVideoTracks()[0];
+      const audioTracks = mediaStream.getAudioTracks();
+      const combinedStream = new MediaStream([...audioTracks, newVideoTrack]);
+      setMediaStream(combinedStream);
+      setFacingMode(newMode);
+    } catch (err) {
+      console.error("Failed to switch camera:", err);
+      toast.error("Camera switch failed", {
+        description: "Could not switch to " + (newMode === "environment" ? "rear" : "front") + " camera.",
+      });
+    }
+  }, [mediaStream, facingMode]);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background">
       {/* Subtle background grid */}
