@@ -59,6 +59,7 @@ const AgentInterface = () => {
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [sessionDuration, setSessionDuration] = useState(0);
   const [showStartScreen, setShowStartScreen] = useState(true);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const visionLoopRef = useRef<VisionLoopHandle>(null);
 
