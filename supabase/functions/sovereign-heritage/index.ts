@@ -192,6 +192,7 @@ serve(async (req) => {
       "search_knowledge_base", "zoom_camera", "alert_user",
       "set_goal", "complete_milestone", "search_goals",
       "delegate_to_specialist", "describe_in_isizulu",
+      "get_weather", "describe_what_i_see",
     ];
 
     // Use Gemini 2.5 Pro for deeper cultural reasoning
