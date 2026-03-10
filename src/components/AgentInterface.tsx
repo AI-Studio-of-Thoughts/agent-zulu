@@ -246,6 +246,42 @@ const AgentInterface = () => {
           return "Heritage specialist unavailable.";
         }
       },
+      get_weather: async (params) => {
+        const location = String(params.location ?? "Durban");
+        try {
+          const { data, error } = await supabase.functions.invoke("weather-lookup", {
+            body: { location },
+          });
+          if (error) return `Weather error: ${error.message}`;
+          if (data?.error) return `Weather: ${data.error}`;
+          const immersion = settings.isiZuluImmersion;
+          return immersion
+            ? `${data.summary_zu}\n(${data.summary_en})`
+            : data.summary_en;
+        } catch {
+          return "Weather lookup failed. Please try again.";
+        }
+      },
+      describe_what_i_see: async () => {
+        const frame = visionLoopRef.current?.getCurrentFrame();
+        if (!frame) return "Camera is not active. I cannot see anything right now.";
+        try {
+          const base64 = frame.split(",")[1];
+          const { data, error } = await supabase.functions.invoke("vision-reasoning", {
+            body: {
+              frame_base64: base64,
+              context: [],
+              memory_context: "",
+              goals_context: "",
+              isizulu_immersion: settings.isiZuluImmersion,
+            },
+          });
+          if (error) return `Vision error: ${error.message}`;
+          return data?.description ?? "I can see the scene but couldn't describe it.";
+        } catch {
+          return "Vision processing failed.";
+        }
+      },
     });
   }, [agent, settings.memoryEnabled, settings.isiZuluImmersion]);
 
