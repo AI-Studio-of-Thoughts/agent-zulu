@@ -524,6 +524,7 @@ const AgentInterface = () => {
     setGoalReminder(null);
     setActiveReflection(null);
     transcriptsRef.current = [];
+    setTranscriptsState([]);
     visionDescriptionsRef.current = [];
     gesturesRef.current = [];
     clearInterval(reflectionTimerRef.current);
