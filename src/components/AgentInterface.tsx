@@ -671,6 +671,12 @@ const AgentInterface = () => {
             {/* Settings panel */}
             <SettingsPanel onSettingsChange={handleSettingsChange} />
 
+            {/* Generative UI — contextual actions & dynamic theme */}
+            <GenerativeUILayer
+              transcripts={transcriptsState}
+              isConnected={isConnected}
+            />
+
             {/* Avatar area */}
             <div className="absolute inset-0 flex items-center justify-center">
               <AvatarDisplay
