@@ -85,6 +85,7 @@ const AgentInterface = () => {
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
   const reflectionTimerRef = useRef<ReturnType<typeof setInterval>>();
   const transcriptsRef = useRef<Array<{ role: string; text: string }>>([]);
+  const [transcriptsState, setTranscriptsState] = useState<Array<{ role: string; text: string }>>([]);
   const visionDescriptionsRef = useRef<string[]>([]);
   const gesturesRef = useRef<Array<{ type: string; x: number; y: number; label_zu?: string; label_en?: string }>>([]);
 
