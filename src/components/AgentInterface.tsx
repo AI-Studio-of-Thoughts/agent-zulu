@@ -11,6 +11,7 @@ import AlertOverlay from "./AlertOverlay";
 import SettingsPanel from "./SettingsPanel";
 import ReflectionOverlay from "./ReflectionOverlay";
 import ThinkingBubble from "./ThinkingBubble";
+import GenerativeUILayer from "./GenerativeUILayer";
 import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
 import type { ReflectionEvent } from "@/protocol/types";
@@ -84,6 +85,7 @@ const AgentInterface = () => {
   const goalReminderTimerRef = useRef<ReturnType<typeof setInterval>>();
   const reflectionTimerRef = useRef<ReturnType<typeof setInterval>>();
   const transcriptsRef = useRef<Array<{ role: string; text: string }>>([]);
+  const [transcriptsState, setTranscriptsState] = useState<Array<{ role: string; text: string }>>([]);
   const visionDescriptionsRef = useRef<string[]>([]);
   const gesturesRef = useRef<Array<{ type: string; x: number; y: number; label_zu?: string; label_en?: string }>>([]);
 
@@ -321,6 +323,7 @@ const AgentInterface = () => {
       if (event.type === "transcript") {
         transcriptsRef.current.push({ role: event.entry.role, text: event.entry.text });
         if (transcriptsRef.current.length > 20) transcriptsRef.current.shift();
+        setTranscriptsState([...transcriptsRef.current]);
         // Collect vision descriptions from agent transcripts
         if (event.entry.role === "agent") {
           visionDescriptionsRef.current.push(event.entry.text);
@@ -521,6 +524,7 @@ const AgentInterface = () => {
     setGoalReminder(null);
     setActiveReflection(null);
     transcriptsRef.current = [];
+    setTranscriptsState([]);
     visionDescriptionsRef.current = [];
     gesturesRef.current = [];
     clearInterval(reflectionTimerRef.current);
@@ -666,6 +670,12 @@ const AgentInterface = () => {
 
             {/* Settings panel */}
             <SettingsPanel onSettingsChange={handleSettingsChange} />
+
+            {/* Generative UI — contextual actions & dynamic theme */}
+            <GenerativeUILayer
+              transcripts={transcriptsState}
+              isConnected={isConnected}
+            />
 
             {/* Avatar area */}
             <div className="absolute inset-0 flex items-center justify-center">
