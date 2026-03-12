@@ -323,6 +323,7 @@ const AgentInterface = () => {
       if (event.type === "transcript") {
         transcriptsRef.current.push({ role: event.entry.role, text: event.entry.text });
         if (transcriptsRef.current.length > 20) transcriptsRef.current.shift();
+        setTranscriptsState([...transcriptsRef.current]);
         // Collect vision descriptions from agent transcripts
         if (event.entry.role === "agent") {
           visionDescriptionsRef.current.push(event.entry.text);
