@@ -12,7 +12,6 @@ import {
   PieChart, Pie, Cell, LineChart, Line,
   ResponsiveContainer,
 } from "recharts";
-import { supabase } from "@/integrations/supabase/client";
 import { fetchCommunityStats, type CommunityStats } from "@/lib/community-flywheel";
 
 interface SessionLog {
@@ -39,17 +38,14 @@ const Analytics = () => {
 
   useEffect(() => {
     const fetchAll = async () => {
-      const [logsResult, community] = await Promise.all([
-        supabase
-          .from("session_logs")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(500),
+      const [logsResponse, community] = await Promise.all([
+        fetch("/api/session-logs"),
         fetchCommunityStats(),
       ]);
 
-      if (!logsResult.error && logsResult.data) {
-        setLogs(logsResult.data as SessionLog[]);
+      if (logsResponse.ok) {
+        const logsData = await logsResponse.json();
+        setLogs((logsData.logs ?? logsData) as SessionLog[]);
       }
       setCommunityStats(community);
       setLoading(false);

@@ -8,7 +8,6 @@
  * Failed operations are queued via the offline outbox for later retry.
  */
 
-import { supabase } from "@/integrations/supabase/client";
 import { loadSettings } from "@/lib/agent-memory";
 import { enqueue } from "@/lib/offline-outbox";
 
@@ -101,8 +100,12 @@ export async function shareToFlywheel(
   };
 
   try {
-    const { error } = await (supabase as any).from("community_logs").insert(row);
-    if (error) throw error;
+    const response = await fetch("/api/log-community", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(row),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
   } catch {
     // Queue for offline retry
     await enqueue("community_logs", row);
@@ -134,65 +137,9 @@ export async function fetchCommunityStats(): Promise<CommunityStats> {
   };
 
   try {
-    const { data, error } = await (supabase as any)
-      .from("community_logs")
-      .select("event_type, language, region, device_hash, session_hash, created_at")
-      .order("created_at", { ascending: false })
-      .limit(1000);
-
-    if (error || !data) return defaultStats;
-
-    const logs = data as Array<{
-      event_type: string;
-      language: string;
-      region: string;
-      device_hash: string;
-      session_hash: string;
-      created_at: string;
-    }>;
-
-    const devices = new Set(logs.map((l) => l.device_hash));
-    const sessions = new Set(logs.map((l) => l.session_hash));
-
-    const langCounts: Record<string, number> = {};
-    logs.forEach((l) => {
-      langCounts[l.language] = (langCounts[l.language] || 0) + 1;
-    });
-    const languageDistribution = Object.entries(langCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    const regionCounts: Record<string, number> = {};
-    logs.forEach((l) => {
-      regionCounts[l.region] = (regionCounts[l.region] || 0) + 1;
-    });
-    const regionDistribution = Object.entries(regionCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    const eventCounts: Record<string, number> = {};
-    logs.forEach((l) => {
-      eventCounts[l.event_type] = (eventCounts[l.event_type] || 0) + 1;
-    });
-    const topEventTypes = Object.entries(eventCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-
-    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const recentActivity = logs.filter(
-      (l) => new Date(l.created_at).getTime() > dayAgo
-    ).length;
-
-    return {
-      totalContributions: logs.length,
-      uniqueDevices: devices.size,
-      uniqueSessions: sessions.size,
-      languageDistribution,
-      regionDistribution,
-      topEventTypes,
-      recentActivity,
-    };
+    const response = await fetch("/api/community-stats");
+    if (!response.ok) return defaultStats;
+    return await response.json() as CommunityStats;
   } catch {
     return defaultStats;
   }

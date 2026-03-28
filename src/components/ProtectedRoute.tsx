@@ -1,10 +1,10 @@
-import { useAuth } from "@/hooks/useAuth";
+import { useUser } from "@clerk/react";
 import { Navigate } from "react-router-dom";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { isLoaded, isSignedIn } = useUser();
 
-  if (loading) {
+  if (!isLoaded) {
     return (
       <div className="w-screen h-screen bg-background flex items-center justify-center">
         <div className="font-mono text-xs tracking-[0.3em] text-muted-foreground uppercase animate-pulse">
@@ -14,7 +14,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!user) {
+  if (!isSignedIn) {
     return <Navigate to="/auth" replace />;
   }
 

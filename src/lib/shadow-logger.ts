@@ -9,12 +9,16 @@
  * Failed operations are queued via the offline outbox for later retry.
  */
 
-import { supabase } from "@/integrations/supabase/client";
 import { loadSettings } from "@/lib/agent-memory";
 import { shareToFlywheel } from "@/lib/community-flywheel";
 import { enqueue } from "@/lib/offline-outbox";
 
 let sessionId: string | null = null;
+let currentUserId: string | null = null;
+
+export function setCurrentUserId(id: string | null): void {
+  currentUserId = id;
+}
 
 export function startShadowSession(): string {
   sessionId = crypto.randomUUID();
@@ -44,29 +48,22 @@ export async function shadowLog(
 
   // Private session logs (sovereign training)
   if (settings.sovereignTraining) {
-    // Get current user id for tagging
-    let userId: string | null = null;
+    const row = {
+      session_id: sessionId,
+      event_type: eventType,
+      payload: sanitized,
+      user_id: currentUserId,
+    };
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      userId = session?.user?.id ?? null;
-    } catch {}
-
-    try {
-      const { error } = await (supabase as any).from("session_logs").insert({
-        session_id: sessionId,
-        event_type: eventType,
-        payload: sanitized,
-        user_id: userId,
+      const response = await fetch("/api/log-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(row),
       });
-      if (error) throw error;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
     } catch {
       // Queue for retry
-      await enqueue("session_logs", {
-        session_id: sessionId,
-        event_type: eventType,
-        payload: sanitized,
-        user_id: userId,
-      });
+      await enqueue("session_logs", row);
     }
   }
 

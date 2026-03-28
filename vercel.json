@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/vision-reasoning.ts": { "maxDuration": 30 },
+    "api/sovereign-heritage.ts": { "maxDuration": 30 },
+    "api/sovereign-reflection.ts": { "maxDuration": 30 },
+    "api/specialist-delegation.ts": { "maxDuration": 30 },
+    "api/vision-shadow.ts": { "maxDuration": 30 }
+  }
+}

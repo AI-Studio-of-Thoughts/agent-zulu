@@ -8,7 +8,6 @@
  * Falls back to standard Gemini if sovereign endpoint fails or times out.
  */
 
-import { supabase } from "@/integrations/supabase/client";
 import { formatMemoriesForPrompt, formatGoalsForPrompt, loadSettings } from "@/lib/agent-memory";
 import { shadowLog } from "@/lib/shadow-logger";
 import { getOnDeviceEngine } from "@/lib/on-device-vision";
@@ -144,8 +143,10 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
       // Try sovereign endpoint first (unless disabled by latency guard)
       if (!this._sovereignDisabledForSession) {
         try {
-          const sovereignPromise = supabase.functions.invoke("sovereign-heritage", {
-            body: {
+          const sovereignPromise = fetch("/api/sovereign-heritage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               frame_base64: base64,
               context: this.context,
               memory_context: memoryContext,
@@ -153,21 +154,21 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
               target_language: currentSettings.panAfricanMode
                 ? currentSettings.panAfricanLanguage
                 : (currentSettings.isiZuluImmersion ? "isizulu" : "isizulu"),
-            },
+            }),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || `HTTP ${res.status}`);
+            }
+            return res.json();
           });
 
           const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("Sovereign timeout")), this.sovereignTimeoutMs)
           );
 
-          const result = await Promise.race([sovereignPromise, timeoutPromise]);
+          data = await Promise.race([sovereignPromise, timeoutPromise]);
           const sovereignLatency = Date.now() - startTime;
-
-          if (result.error) {
-            throw new Error(result.error.message || "Sovereign error");
-          }
-
-          data = result.data;
           usedSovereign = true;
 
           // Track latency for guard
@@ -300,18 +301,21 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
     startTime: number
   ): Promise<any | null> {
     try {
-      const { data: geminiData, error: geminiError } = await supabase.functions.invoke("vision-reasoning", {
-        body: {
+      const response = await fetch("/api/vision-reasoning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           frame_base64: base64,
           context: this.context,
           memory_context: memoryContext,
           goals_context: goalsContext,
           isizulu_immersion: true,
-        },
+        }),
       });
 
-      if (geminiError) {
-        const msg = typeof geminiError === "object" && geminiError.message ? geminiError.message : String(geminiError);
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        const msg = errBody.error || `HTTP ${response.status}`;
         if (msg.includes("429") || msg.includes("Rate limit")) {
           this.backoffUntil = Date.now() + 30000;
           return null;
@@ -319,6 +323,8 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
         this.emit({ type: "error", error: msg });
         return null;
       }
+
+      const geminiData = await response.json();
 
       shadowLog("sovereign_fallback", {
         reason: this._sovereignDisabledForSession ? "latency_guard" : "error",

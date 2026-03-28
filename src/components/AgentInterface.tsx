@@ -16,7 +16,7 @@ import type { VisionLoopHandle } from "./VisionLoop";
 import type { AlertData } from "./AlertOverlay";
 import type { ReflectionEvent } from "@/protocol/types";
 import { useAgentProtocol, HybridAdapter, SovereignBetaAdapter } from "@/protocol";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import {
   saveMemory,
   searchMemories,
@@ -31,6 +31,7 @@ import {
 import {
   startShadowSession,
   endShadowSession,
+  setCurrentUserId,
   logToolCall,
   logSpecialistDelegation,
   logProactiveTrigger,
@@ -47,6 +48,7 @@ interface PointerData {
 }
 
 const AgentInterface = () => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<AgentSettings>(loadSettings);
   const adapter = useMemo(
     () => settings.sovereignBeta ? new SovereignBetaAdapter() : new HybridAdapter(),
@@ -219,10 +221,13 @@ const AgentInterface = () => {
           ? " Respond primarily in isiZulu with English gloss."
           : "";
         try {
-          const { data, error } = await supabase.functions.invoke("specialist-delegation", {
-            body: { specialist, task: task + immersionNote, context: [] },
+          const response = await fetch("/api/specialist-delegation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ specialist, task: task + immersionNote, context: [] }),
           });
-          if (error) return `Specialist error: ${error.message}`;
+          if (!response.ok) { const e = await response.json(); return `Specialist error: ${e.error}`; }
+          const data = await response.json();
           const result = data?.analysis ?? "No analysis available.";
           logSpecialistDelegation(specialist, task, result);
           return `[${specialist}]: ${result}${data?.isizulu_note ? ` (${data.isizulu_note})` : ""}`;
@@ -233,14 +238,17 @@ const AgentInterface = () => {
       describe_in_isizulu: async (params) => {
         const subject = String(params.subject ?? "this object");
         try {
-          const { data, error } = await supabase.functions.invoke("specialist-delegation", {
-            body: {
+          const response = await fetch("/api/specialist-delegation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               specialist: "heritage",
               task: `Describe "${subject}" primarily in isiZulu. Provide the isiZulu description first, then a brief English gloss. Include cultural significance, relevant proverbs (izaga), and symbolic meaning.`,
               context: [],
-            },
+            }),
           });
-          if (error) return `Heritage specialist error: ${error.message}`;
+          if (!response.ok) { const e = await response.json(); return `Heritage specialist error: ${e.error}`; }
+          const data = await response.json();
           const result = data?.analysis ?? "Akukho ncazelo.";
           logSpecialistDelegation("heritage", `describe_in_isizulu: ${subject}`, result);
           return `[isiZulu]: ${result}${data?.isizulu_note ? `\n${data.isizulu_note}` : ""}`;
@@ -251,13 +259,15 @@ const AgentInterface = () => {
       get_weather: async (params) => {
         const location = String(params.location ?? "Durban");
         try {
-          const { data, error } = await supabase.functions.invoke("weather-lookup", {
-            body: { location },
+          const response = await fetch("/api/weather-lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ location }),
           });
-          if (error) return `Weather error: ${error.message}`;
+          if (!response.ok) { const e = await response.json(); return `Weather error: ${e.error}`; }
+          const data = await response.json();
           if (data?.error) return `Weather: ${data.error}`;
-          const immersion = settings.isiZuluImmersion;
-          return immersion
+          return settings.isiZuluImmersion
             ? `${data.summary_zu}\n(${data.summary_en})`
             : data.summary_en;
         } catch {
@@ -269,16 +279,19 @@ const AgentInterface = () => {
         if (!frame) return "Camera is not active. I cannot see anything right now.";
         try {
           const base64 = frame.split(",")[1];
-          const { data, error } = await supabase.functions.invoke("vision-reasoning", {
-            body: {
+          const response = await fetch("/api/vision-reasoning", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               frame_base64: base64,
               context: [],
               memory_context: "",
               goals_context: "",
               isizulu_immersion: settings.isiZuluImmersion,
-            },
+            }),
           });
-          if (error) return `Vision error: ${error.message}`;
+          if (!response.ok) { const e = await response.json(); return `Vision error: ${e.error}`; }
+          const data = await response.json();
           return data?.description ?? "I can see the scene but couldn't describe it.";
         } catch {
           return "Vision processing failed.";
@@ -346,8 +359,10 @@ const AgentInterface = () => {
       const memories = searchMemories("").slice(-5);
       const lang = settings.panAfricanMode ? settings.panAfricanLanguage : (settings.isiZuluImmersion ? "isizulu" : "isizulu");
 
-      const { data, error } = await supabase.functions.invoke("sovereign-reflection", {
-        body: {
+      const reflectionResponse = await fetch("/api/sovereign-reflection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           transcripts: transcriptsRef.current.slice(-10),
           vision_descriptions: visionDescriptionsRef.current.slice(-5),
           gestures: gesturesRef.current.slice(-5),
@@ -355,15 +370,18 @@ const AgentInterface = () => {
           memories: memories.map((m) => ({ name: m.name, description: m.description })),
           target_language: lang,
           community_query: settings.ubuntuDataSharing ? true : null,
-        },
+        }),
       });
 
       setIsReflecting(false);
 
-      if (error) {
-        console.error("[Reflection] Error:", error.message);
+      if (!reflectionResponse.ok) {
+        const e = await reflectionResponse.json().catch(() => ({}));
+        console.error("[Reflection] Error:", e.error || reflectionResponse.status);
         return;
       }
+
+      const data = await reflectionResponse.json();
 
       if (data) {
         const reflection: ReflectionEvent = {
@@ -490,15 +508,23 @@ const AgentInterface = () => {
       setMediaStream(stream);
       setMicActive(true);
 
-      const { data, error } = await supabase.functions.invoke("elevenlabs-conversation-token");
-      if (error || !data?.signed_url) {
+      const tokenResponse = await fetch("/api/elevenlabs-conversation-token", { method: "POST" });
+      if (!tokenResponse.ok) {
         stream?.getTracks().forEach((t) => t.stop());
         setMediaStream(null);
-        throw new Error(error?.message || "No signed URL received");
+        const e = await tokenResponse.json().catch(() => ({}));
+        throw new Error(e.error || "No signed URL received");
+      }
+      const tokenData = await tokenResponse.json();
+      if (!tokenData?.signed_url) {
+        stream?.getTracks().forEach((t) => t.stop());
+        setMediaStream(null);
+        throw new Error("No signed URL received");
       }
 
-      await agent.connect({ signed_url: data.signed_url });
+      await agent.connect({ signed_url: tokenData.signed_url });
       startShadowSession();
+      setCurrentUserId(user?.id ?? null);
       setShowStartScreen(false);
     } catch (err) {
       console.error("Failed to start session:", err);
@@ -512,6 +538,7 @@ const AgentInterface = () => {
   const endSession = useCallback(async () => {
     await agent.disconnect();
     endShadowSession();
+    setCurrentUserId(null);
     mediaStream?.getTracks().forEach((t) => t.stop());
     setMediaStream(null);
     setCameraActive(false);

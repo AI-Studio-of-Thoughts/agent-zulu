@@ -12,7 +12,6 @@
  * - Emit avatar_state, transcript, and tool_call events
  */
 
-import { supabase } from "@/integrations/supabase/client";
 import { formatMemoriesForPrompt, formatGoalsForPrompt, loadSettings } from "@/lib/agent-memory";
 import { shadowLog } from "@/lib/shadow-logger";
 import type {
@@ -123,29 +122,32 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
       const memoryContext = currentSettings.memoryEnabled ? formatMemoriesForPrompt() : "";
       const goalsContext = currentSettings.memoryEnabled ? formatGoalsForPrompt() : "";
 
-      const { data, error } = await supabase.functions.invoke("vision-reasoning", {
-        body: {
+      const visionResponse = await fetch("/api/vision-reasoning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           frame_base64: base64,
           context: this.context,
           memory_context: memoryContext,
           goals_context: goalsContext,
           isizulu_immersion: currentSettings.isiZuluImmersion,
-        },
+        }),
       });
 
-      if (error) {
-        const msg = typeof error === "object" && error.message ? error.message : String(error);
-        // Silently back off on rate limits — don't surface as error
+      if (!visionResponse.ok) {
+        const errBody = await visionResponse.json().catch(() => ({}));
+        const msg = errBody.error || `HTTP ${visionResponse.status}`;
         if (msg.includes("429") || msg.includes("Rate limit")) {
           console.warn("[GeminiVision] Rate limited — backing off 30s");
           this.backoffUntil = Date.now() + 30000;
           return;
         }
-        console.error("[GeminiVision] Edge function error:", error);
+        console.error("[GeminiVision] API error:", msg);
         this.emit({ type: "error", error: msg || "Vision reasoning failed" });
         return;
       }
 
+      const data = await visionResponse.json();
       if (!data) return;
 
       // Update avatar state from Gemini's response
@@ -224,8 +226,10 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
     primaryResult: any
   ): Promise<void> {
     try {
-      const { data, error } = await supabase.functions.invoke("vision-shadow", {
-        body: {
+      const shadowResponse = await fetch("/api/vision-shadow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           frame_base64: frameBase64,
           isizulu_immersion: isiZuluImmersion,
           primary_result: {
@@ -233,13 +237,15 @@ export class GeminiVisionAdapter implements AgentBackendAdapter {
             emotion: primaryResult.emotion,
             intensity: primaryResult.intensity,
           },
-        },
+        }),
       });
 
-      if (error) {
-        console.debug("[Shadow] Comparison failed:", error);
+      if (!shadowResponse.ok) {
+        console.debug("[Shadow] Comparison failed:", shadowResponse.status);
         return;
       }
+
+      const data = await shadowResponse.json();
 
       // Log comparison to session_logs via shadow logger
       shadowLog("shadow_comparison", {
