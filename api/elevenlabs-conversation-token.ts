@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { setCors } from "./_cors.js";
 
-const ELEVENLABS_AGENT_ID = "agent_2501kk6wt2eneyysjqpsh1jyff15";
+const ELEVENLABS_AGENT_ID = "agent_5701kmv2m6kseps9psy6yr9nxxze";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCors(res);
