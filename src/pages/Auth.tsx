@@ -5,13 +5,15 @@ import { useSignIn, useSignUp } from "@clerk/react/legacy";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
+type Step = "credentials" | "verify-signup" | "verify-signin";
+
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [pendingVerification, setPendingVerification] = useState(false);
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<Step>("credentials");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { isSignedIn } = useUser();
@@ -28,36 +30,58 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (pendingVerification) {
-        // Verify the email code
-        const result = await signUp!.attemptEmailAddressVerification({ code: verificationCode });
+      // ── Step: verify sign-up email code ──────────────────
+      if (step === "verify-signup") {
+        const result = await signUp!.attemptEmailAddressVerification({ code });
         if (result.status === "complete") {
           await setSignUpActive!({ session: result.createdSessionId });
           toast.success("Account verified! Welcome to Agent Zulu.");
           navigate("/");
         } else {
-          toast.error("Verification incomplete. Please try again.");
+          toast.error("Invalid code. Please try again.");
         }
-      } else if (isLogin) {
+        return;
+      }
+
+      // ── Step: verify sign-in second factor (new device) ──
+      if (step === "verify-signin") {
+        const attempt = await signIn!.attemptSecondFactor({ strategy: "email_code", code });
+        if (attempt.status === "complete") {
+          await setSignInActive!({ session: attempt.createdSessionId });
+          toast.success("Welcome back!");
+          navigate("/");
+        } else {
+          toast.error("Invalid code. Please try again.");
+        }
+        return;
+      }
+
+      // ── Step: credentials ─────────────────────────────────
+      if (isLogin) {
         const result = await signIn!.create({ identifier: email, password });
-        console.log("[SignIn] status:", result.status, result);
         if (result.status === "complete") {
           await setSignInActive!({ session: result.createdSessionId });
           toast.success("Welcome back!");
           navigate("/");
         } else if (result.status === "needs_first_factor") {
-          // Attempt password factor explicitly
           const attempt = await signIn!.attemptFirstFactor({ strategy: "password", password });
-          console.log("[SignIn] attempt status:", attempt.status);
           if (attempt.status === "complete") {
             await setSignInActive!({ session: attempt.createdSessionId });
             toast.success("Welcome back!");
             navigate("/");
+          } else if (attempt.status === "needs_second_factor") {
+            await signIn!.prepareSecondFactor({ strategy: "email_code" });
+            setStep("verify-signin");
+            toast.success("Check your email for a verification code.");
           } else {
-            toast.error(`Sign-in incomplete: ${attempt.status}`);
+            toast.error(`Unexpected status: ${attempt.status}`);
           }
+        } else if (result.status === "needs_second_factor") {
+          await signIn!.prepareSecondFactor({ strategy: "email_code" });
+          setStep("verify-signin");
+          toast.success("Check your email for a verification code.");
         } else {
-          toast.error(`Sign-in status: ${result.status}. Please try again.`);
+          toast.error(`Unexpected status: ${result.status}`);
         }
       } else {
         const result = await signUp!.create({
@@ -71,7 +95,7 @@ const Auth = () => {
           navigate("/");
         } else {
           await signUp!.prepareEmailAddressVerification({ strategy: "email_code" });
-          setPendingVerification(true);
+          setStep("verify-signup");
           toast.success("Check your email for a verification code.");
         }
       }
@@ -82,6 +106,11 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  const isVerifyStep = step !== "credentials";
+  const title = step === "verify-signup" ? "VERIFY EMAIL"
+    : step === "verify-signin" ? "NEW DEVICE CHECK"
+    : isLogin ? "SIGN IN" : "CREATE ACCOUNT";
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background flex items-center justify-center">
@@ -109,18 +138,21 @@ const Auth = () => {
         </div>
         <form onSubmit={handleSubmit} className="glass-surface rounded-lg p-6 space-y-4">
           <h2 className="font-display text-sm tracking-[0.15em] text-foreground/80 text-center">
-            {pendingVerification ? "VERIFY EMAIL" : isLogin ? "SIGN IN" : "CREATE ACCOUNT"}
+            {title}
           </h2>
 
-          {pendingVerification ? (
+          {isVerifyStep ? (
             <div>
-              <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Verification Code</label>
+              <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">
+                {step === "verify-signin" ? "Security Code" : "Verification Code"}
+              </label>
               <input
                 type="text"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
                 required
                 autoFocus
+                inputMode="numeric"
                 className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 tracking-[0.3em] text-center"
                 placeholder="000000"
                 maxLength={6}
@@ -149,10 +181,10 @@ const Auth = () => {
           )}
 
           <button type="submit" disabled={loading || !signInLoaded || !signUpLoaded} className="w-full bg-primary/10 border border-primary/40 text-primary rounded-md py-2.5 font-display text-xs tracking-[0.15em] uppercase hover:bg-primary/20 transition-colors disabled:opacity-50">
-            {loading ? "Processing…" : pendingVerification ? "Verify" : isLogin ? "Sign In" : "Create Account"}
+            {loading ? "Processing…" : isVerifyStep ? "Verify" : isLogin ? "Sign In" : "Create Account"}
           </button>
 
-          {!pendingVerification && (
+          {!isVerifyStep && (
             <p className="text-center text-xs text-muted-foreground font-body">
               {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
               <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-primary hover:underline">
@@ -161,9 +193,9 @@ const Auth = () => {
             </p>
           )}
 
-          {pendingVerification && (
+          {isVerifyStep && (
             <p className="text-center text-xs text-muted-foreground font-body">
-              <button type="button" onClick={() => setPendingVerification(false)} className="text-primary hover:underline">
+              <button type="button" onClick={() => { setStep("credentials"); setCode(""); }} className="text-primary hover:underline">
                 Back
               </button>
             </p>
