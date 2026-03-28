@@ -2,7 +2,7 @@
  * Vision Reasoning Edge Function
  *
  * Accepts a base64-encoded camera frame + conversation context,
- * sends to Gemini 2.5 Flash via Lovable AI gateway for visual reasoning,
+ * sends to Claude via Anthropic API for visual reasoning,
  * returns structured response with tools for embodied agency.
  *
  * Tools: point_at_screen, freeze_frame, remember_object, search_knowledge_base,
@@ -52,15 +52,112 @@ MULTI-AGENT DELEGATION: For culturally nuanced scenes, delegate to "heritage" sp
 
 Use tools sparingly and naturally. Prioritize cultural relevance and ubuntu-style helpfulness.`;
 
+/** Convert OpenAI-format messages to Anthropic format */
+function convertMessages(msgs: any[]): any[] {
+  const result: any[] = [];
+  for (const msg of msgs) {
+    if (msg.role === "system") continue; // handled via top-level system param
+    const content = convertContent(msg.content);
+    result.push({ role: msg.role, content });
+  }
+  // Anthropic requires messages to start with a user turn
+  while (result.length > 0 && result[0].role !== "user") {
+    result.shift();
+  }
+  return result;
+}
+
+function convertContent(content: any): any {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((c) => {
+      if (c.type === "image_url") {
+        const url: string = c.image_url?.url || "";
+        const base64 = url.replace(/^data:image\/\w+;base64,/, "");
+        return { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } };
+      }
+      return c;
+    });
+  }
+  return content;
+}
+
+const toolEnumNames = [
+  "point_at_screen", "freeze_frame", "remember_object",
+  "search_knowledge_base", "zoom_camera", "alert_user",
+  "set_goal", "complete_milestone", "search_goals",
+  "delegate_to_specialist", "describe_in_isizulu",
+  "get_weather", "describe_what_i_see",
+];
+
+const VISION_TOOL = {
+  name: "vision_response",
+  description: "Structured response to a camera frame with optional action tools, proactive suggestions, and multi-turn planning.",
+  input_schema: {
+    type: "object",
+    properties: {
+      description: { type: "string", description: "Brief natural-language observation (1-2 sentences)." },
+      emotion: {
+        type: "string",
+        enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
+      },
+      intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
+      proactive_suggestion: {
+        type: "object",
+        description: "Optional proactive comment. Only when truly noteworthy.",
+        properties: {
+          text: { type: "string" },
+          confidence: { type: "number" },
+        },
+        required: ["text", "confidence"],
+      },
+      tool_calls: {
+        type: "array",
+        description: "Optional action tool calls. Can chain 2-4 for multi-turn planning.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", enum: toolEnumNames },
+            parameters: {
+              type: "object",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                description: { type: "string" },
+                name: { type: "string" },
+                query: { type: "string" },
+                factor: { type: "number" },
+                duration_ms: { type: "number" },
+                message: { type: "string" },
+                urgency: { type: "string", enum: ["low", "medium", "high"] },
+                milestones: { type: "array", items: { type: "string" } },
+                goal_name: { type: "string" },
+                milestone: { type: "string" },
+                specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
+                task: { type: "string", description: "Task to delegate to specialist." },
+                subject: { type: "string", description: "Subject for describe_in_isizulu." },
+                location: { type: "string", description: "Location for weather lookup (city name)." },
+              },
+            },
+          },
+          required: ["name"],
+        },
+      },
+    },
+    required: ["description", "emotion", "intensity"],
+    additionalProperties: false,
+  },
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -81,110 +178,37 @@ serve(async (req) => {
 
     const systemContent = SYSTEM_PROMPT + immersionNote + (memory_context || "") + (goals_context || "");
 
-    const messages: any[] = [
-      { role: "system", content: systemContent },
-    ];
+    const messages: any[] = [];
 
     if (context && Array.isArray(context)) {
-      messages.push(...context.slice(-6));
+      messages.push(...convertMessages(context.slice(-6)));
     }
 
     messages.push({
       role: "user",
       content: [
         { type: "text", text: "Here is the current camera frame. Observe and respond." },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${frame_base64}` } },
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame_base64 } },
       ],
     });
 
-    const toolEnumNames = [
-      "point_at_screen", "freeze_frame", "remember_object",
-      "search_knowledge_base", "zoom_camera", "alert_user",
-      "set_goal", "complete_milestone", "search_goals",
-      "delegate_to_specialist", "describe_in_isizulu",
-      "get_weather", "describe_what_i_see",
-    ];
-
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages,
-          max_tokens: 600,
-          temperature: 0.7,
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "vision_response",
-                description: "Structured response to a camera frame with optional action tools, proactive suggestions, and multi-turn planning.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    description: { type: "string", description: "Brief natural-language observation (1-2 sentences)." },
-                    emotion: {
-                      type: "string",
-                      enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
-                    },
-                    intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
-                    proactive_suggestion: {
-                      type: "object",
-                      description: "Optional proactive comment. Only when truly noteworthy.",
-                      properties: {
-                        text: { type: "string" },
-                        confidence: { type: "number" },
-                      },
-                      required: ["text", "confidence"],
-                    },
-                    tool_calls: {
-                      type: "array",
-                      description: "Optional action tool calls. Can chain 2-4 for multi-turn planning.",
-                      items: {
-                        type: "object",
-                        properties: {
-                          name: { type: "string", enum: toolEnumNames },
-                          parameters: {
-                            type: "object",
-                            properties: {
-                              x: { type: "number" },
-                              y: { type: "number" },
-                              description: { type: "string" },
-                              name: { type: "string" },
-                              query: { type: "string" },
-                              factor: { type: "number" },
-                              duration_ms: { type: "number" },
-                              message: { type: "string" },
-                              urgency: { type: "string", enum: ["low", "medium", "high"] },
-                              milestones: { type: "array", items: { type: "string" } },
-                              goal_name: { type: "string" },
-                              milestone: { type: "string" },
-                              specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
-                              task: { type: "string", description: "Task to delegate to specialist." },
-                              subject: { type: "string", description: "Subject for describe_in_isizulu." },
-                              location: { type: "string", description: "Location for weather lookup (city name)." },
-                            },
-                          },
-                        },
-                        required: ["name"],
-                      },
-                    },
-                  },
-                  required: ["description", "emotion", "intensity"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "vision_response" } },
-        }),
-      }
-    );
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        temperature: 0.7,
+        system: systemContent,
+        messages,
+        tools: [VISION_TOOL],
+        tool_choice: { type: "tool", name: "vision_response" },
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -193,34 +217,21 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please top up." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
-      throw new Error(`AI gateway error [${response.status}]`);
+      console.error("Anthropic API error:", response.status, errText);
+      throw new Error(`Anthropic API error [${response.status}]`);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const toolUse = data.content?.find((c: any) => c.type === "tool_use");
     let result;
 
-    if (toolCall?.function?.arguments) {
-      try {
-        result = JSON.parse(toolCall.function.arguments);
-      } catch {
-        result = {
-          description: data.choices?.[0]?.message?.content || "I see the scene.",
-          emotion: "neutral",
-          intensity: 0.3,
-        };
-      }
+    if (toolUse?.input) {
+      result = toolUse.input;
     } else {
+      const textContent = data.content?.find((c: any) => c.type === "text");
       result = {
-        description: data.choices?.[0]?.message?.content || "I see the scene.",
+        description: textContent?.text || "I see the scene.",
         emotion: "neutral",
         intensity: 0.3,
       };

@@ -1,7 +1,7 @@
 /**
  * Specialist Delegation Edge Function
  *
- * Routes specialist sub-agent requests to Gemini with role-specific prompts.
+ * Routes specialist sub-agent requests to Claude with role-specific prompts.
  * Specialists: cultural (isiZulu/heritage), safety (risk assessment),
  * memory (recall/archival), general (fallback).
  */
@@ -53,15 +53,41 @@ Respond concisely (2-3 sentences). You MUST call the "specialist_response" tool.
 Respond with depth (2-4 sentences). You MUST call the "specialist_response" tool.`,
 };
 
+const SPECIALIST_TOOL = {
+  name: "specialist_response",
+  description: "Structured specialist response.",
+  input_schema: {
+    type: "object",
+    properties: {
+      analysis: { type: "string", description: "The specialist's analysis or interpretation." },
+      confidence: { type: "number", description: "Confidence in the analysis 0.0-1.0." },
+      suggested_actions: {
+        type: "array",
+        description: "Optional follow-up tool calls the main agent should consider.",
+        items: {
+          type: "object",
+          properties: {
+            tool: { type: "string" },
+            reason: { type: "string" },
+          },
+        },
+      },
+      isizulu_note: { type: "string", description: "Optional isiZulu phrase or cultural note." },
+    },
+    required: ["analysis", "confidence"],
+    additionalProperties: false,
+  },
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -72,13 +98,20 @@ serve(async (req) => {
     const specialistType = SPECIALIST_PROMPTS[specialist] ? specialist : "general";
     const systemPrompt = SPECIALIST_PROMPTS[specialistType];
 
-    const messages: any[] = [
-      { role: "system", content: systemPrompt },
-    ];
+    const messages: any[] = [];
 
-    // Add any context
+    // Add any prior context (text-only turns)
     if (context && Array.isArray(context)) {
-      messages.push(...context.slice(-4));
+      for (const msg of context.slice(-4)) {
+        if (msg.role === "system") continue;
+        if (typeof msg.content === "string") {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      }
+      // Ensure messages start with a user turn
+      while (messages.length > 0 && messages[0].role !== "user") {
+        messages.shift();
+      }
     }
 
     // Build user message with optional frame
@@ -88,60 +121,30 @@ serve(async (req) => {
 
     if (frame_base64) {
       userContent.push({
-        type: "image_url",
-        image_url: { url: `data:image/jpeg;base64,${frame_base64}` },
+        type: "image",
+        source: { type: "base64", media_type: "image/jpeg", data: frame_base64 },
       });
     }
 
     messages.push({ role: "user", content: userContent });
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages,
-          max_tokens: 400,
-          temperature: 0.7,
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "specialist_response",
-                description: "Structured specialist response.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    analysis: { type: "string", description: "The specialist's analysis or interpretation." },
-                    confidence: { type: "number", description: "Confidence in the analysis 0.0-1.0." },
-                    suggested_actions: {
-                      type: "array",
-                      description: "Optional follow-up tool calls the main agent should consider.",
-                      items: {
-                        type: "object",
-                        properties: {
-                          tool: { type: "string" },
-                          reason: { type: "string" },
-                        },
-                      },
-                    },
-                    isizulu_note: { type: "string", description: "Optional isiZulu phrase or cultural note." },
-                  },
-                  required: ["analysis", "confidence"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "specialist_response" } },
-        }),
-      }
-    );
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 400,
+        temperature: 0.7,
+        system: systemPrompt,
+        messages,
+        tools: [SPECIALIST_TOOL],
+        tool_choice: { type: "tool", name: "specialist_response" },
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -150,29 +153,20 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const errText = await response.text();
       console.error("Specialist error:", response.status, errText);
-      throw new Error(`AI gateway error [${response.status}]`);
+      throw new Error(`Anthropic API error [${response.status}]`);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const toolUse = data.content?.find((c: any) => c.type === "tool_use");
     let result;
 
-    if (toolCall?.function?.arguments) {
-      try {
-        result = JSON.parse(toolCall.function.arguments);
-      } catch {
-        result = { analysis: data.choices?.[0]?.message?.content || "Analysis complete.", confidence: 0.5 };
-      }
+    if (toolUse?.input) {
+      result = toolUse.input;
     } else {
-      result = { analysis: data.choices?.[0]?.message?.content || "Analysis complete.", confidence: 0.5 };
+      const textContent = data.content?.find((c: any) => c.type === "text");
+      result = { analysis: textContent?.text || "Analysis complete.", confidence: 0.5 };
     }
 
     result.specialist = specialistType;

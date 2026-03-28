@@ -6,7 +6,7 @@
  * rich "reflection" — with generative poem, predictive goals,
  * and ubuntu wisdom boost.
  *
- * Uses Gemini 2.5 Pro for deep reasoning.
+ * Uses Claude Opus for deep reasoning.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -56,15 +56,85 @@ function getLangPrompt(lang: string): string {
   }
 }
 
+const REFLECTION_TOOL = {
+  name: "reflection_response",
+  description: "Structured reflection with poem, prediction, and community wisdom.",
+  input_schema: {
+    type: "object",
+    properties: {
+      summary: {
+        type: "string",
+        description: "isiZulu-first summary of the session's cultural arc.",
+      },
+      summary_en: {
+        type: "string",
+        description: "English summary.",
+      },
+      proverb: {
+        type: "string",
+        description: "Relevant isaga/methali/òwe with attribution.",
+      },
+      goal_update: {
+        type: "string",
+        description: "Suggested goal update based on what was observed.",
+      },
+      overlays: {
+        type: "array",
+        description: "AR overlay items for the camera feed.",
+        items: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["proverb", "cultural_insight", "goal_update", "community_echo"],
+            },
+            x: { type: "number" },
+            y: { type: "number" },
+            label: { type: "string" },
+            label_en: { type: "string" },
+          },
+          required: ["type", "label"],
+        },
+      },
+      community_echo: {
+        type: "string",
+        description: "Insight drawn from community data, framed with ubuntu warmth.",
+      },
+      generated_poem_isizulu: {
+        type: "string",
+        description: "A 2-4 line isiZulu poem (izibongo/praise) specific to this session's content.",
+      },
+      generated_image_prompt: {
+        type: "string",
+        description: "English image generation prompt (1 sentence) for an AR visual capturing the session essence.",
+      },
+      predicted_next_goal: {
+        type: "string",
+        description: "Predicted next goal for the user based on session trajectory.",
+      },
+      prediction_confidence: {
+        type: "number",
+        description: "Confidence 0-1 in the predicted goal.",
+      },
+      isizulu_suggestion: {
+        type: "string",
+        description: "isiZulu phrased suggestion for the predicted goal, like elder advice.",
+      },
+    },
+    required: ["summary", "proverb", "overlays", "generated_poem_isizulu"],
+    additionalProperties: false,
+  },
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -88,7 +158,6 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const sb = createClient(supabaseUrl, supabaseKey);
 
-        // Pull recent community logs matching cultural tags
         const { data: communityLogs } = await sb
           .from("community_logs")
           .select("event_type, payload, language, region")
@@ -96,12 +165,11 @@ serve(async (req) => {
           .limit(30);
 
         if (communityLogs && communityLogs.length > 0) {
-          // Filter for culturally relevant entries
           const culturalKeywords = ["beadwork", "ceremony", "family", "ubuhlalu", "umsebenzi", "umndeni", "isaga", "gesture", "emotion"];
           const culturalLogs = communityLogs.filter(
             (l: any) => {
               const payloadStr = JSON.stringify(l.payload || {}).toLowerCase();
-              return l.payload?.emotion || l.payload?.gesture_type || 
+              return l.payload?.emotion || l.payload?.gesture_type ||
                 culturalKeywords.some(k => payloadStr.includes(k));
             }
           );
@@ -120,7 +188,6 @@ serve(async (req) => {
     const lang = target_language || "isizulu";
     const systemContent = REFLECTION_SYSTEM_PROMPT + getLangPrompt(lang) + communityEcho;
 
-    // Build the session context
     const sessionContext = [
       transcripts?.length
         ? `RECENT TRANSCRIPTS:\n${transcripts.map((t: any) => `[${t.role}]: ${t.text}`).join("\n")}`
@@ -141,105 +208,28 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n\n");
 
-    const messages = [
-      { role: "system", content: systemContent },
-      {
-        role: "user",
-        content: `Reflect on this session:\n\n${sessionContext}\n\nSynthesize a reflection that captures the cultural arc, ties it to a proverb, composes a session-specific isiZulu poem, predicts the next goal, and suggests next steps with ubuntu warmth.`,
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
       },
-    ];
-
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          messages,
-          max_tokens: 900,
-          temperature: 0.85,
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "reflection_response",
-                description: "Structured reflection with poem, prediction, and community wisdom.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    summary: {
-                      type: "string",
-                      description: "isiZulu-first summary of the session's cultural arc.",
-                    },
-                    summary_en: {
-                      type: "string",
-                      description: "English summary.",
-                    },
-                    proverb: {
-                      type: "string",
-                      description: "Relevant isaga/methali/òwe with attribution.",
-                    },
-                    goal_update: {
-                      type: "string",
-                      description: "Suggested goal update based on what was observed.",
-                    },
-                    overlays: {
-                      type: "array",
-                      description: "AR overlay items for the camera feed.",
-                      items: {
-                        type: "object",
-                        properties: {
-                          type: {
-                            type: "string",
-                            enum: ["proverb", "cultural_insight", "goal_update", "community_echo"],
-                          },
-                          x: { type: "number" },
-                          y: { type: "number" },
-                          label: { type: "string" },
-                          label_en: { type: "string" },
-                        },
-                        required: ["type", "label"],
-                      },
-                    },
-                    community_echo: {
-                      type: "string",
-                      description: "Insight drawn from community data, framed with ubuntu warmth.",
-                    },
-                    generated_poem_isizulu: {
-                      type: "string",
-                      description: "A 2-4 line isiZulu poem (izibongo/praise) specific to this session's content.",
-                    },
-                    generated_image_prompt: {
-                      type: "string",
-                      description: "English image generation prompt (1 sentence) for an AR visual capturing the session essence.",
-                    },
-                    predicted_next_goal: {
-                      type: "string",
-                      description: "Predicted next goal for the user based on session trajectory.",
-                    },
-                    prediction_confidence: {
-                      type: "number",
-                      description: "Confidence 0-1 in the predicted goal.",
-                    },
-                    isizulu_suggestion: {
-                      type: "string",
-                      description: "isiZulu phrased suggestion for the predicted goal, like elder advice.",
-                    },
-                  },
-                  required: ["summary", "proverb", "overlays", "generated_poem_isizulu"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "reflection_response" } },
-        }),
-      }
-    );
+      body: JSON.stringify({
+        model: "claude-opus-4-6",
+        max_tokens: 900,
+        temperature: 0.85,
+        system: systemContent,
+        messages: [
+          {
+            role: "user",
+            content: `Reflect on this session:\n\n${sessionContext}\n\nSynthesize a reflection that captures the cultural arc, ties it to a proverb, composes a session-specific isiZulu poem, predicts the next goal, and suggests next steps with ubuntu warmth.`,
+          },
+        ],
+        tools: [REFLECTION_TOOL],
+        tool_choice: { type: "tool", name: "reflection_response" },
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -248,35 +238,20 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const errText = await response.text();
       console.error("Reflection error:", response.status, errText);
-      throw new Error(`AI gateway error [${response.status}]`);
+      throw new Error(`Anthropic API error [${response.status}]`);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const toolUse = data.content?.find((c: any) => c.type === "tool_use");
     let result;
 
-    if (toolCall?.function?.arguments) {
-      try {
-        result = JSON.parse(toolCall.function.arguments);
-      } catch {
-        result = {
-          summary: "Ngicabanga ngalesi sikhathi esidlule...",
-          proverb: "Umuntu ngumuntu ngabantu.",
-          overlays: [],
-          generated_poem_isizulu: "Izibongo zesigameko — umoya wokucabanga uyavuka.",
-        };
-      }
+    if (toolUse?.input) {
+      result = toolUse.input;
     } else {
       result = {
-        summary: data.choices?.[0]?.message?.content || "Ngicabanga...",
+        summary: data.content?.find((c: any) => c.type === "text")?.text || "Ngicabanga ngalesi sikhathi esidlule...",
         proverb: "Umuntu ngumuntu ngabantu.",
         overlays: [],
         generated_poem_isizulu: "Izibongo zesigameko — umoya wokucabanga uyavuka.",

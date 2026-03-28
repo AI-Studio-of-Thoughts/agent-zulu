@@ -1,14 +1,14 @@
 /**
  * Vision Shadow Comparison Edge Function
  *
- * Sends the same camera frame to multiple Lovable AI models in parallel,
+ * Sends the same camera frame to multiple Claude models in parallel,
  * returns all results for comparison logging. The primary model response
  * is handled by vision-reasoning — this function is fire-and-forget shadow only.
  *
  * Models compared:
- * - google/gemini-2.5-flash (baseline)
- * - google/gemini-2.5-pro (premium)
- * - openai/gpt-5-mini (cross-provider)
+ * - claude-haiku-4-5-20251001 (fast, baseline)
+ * - claude-sonnet-4-6 (balanced)
+ * - claude-opus-4-6 (premium, deep reasoning)
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -24,38 +24,35 @@ const SHADOW_SYSTEM_PROMPT = `You are Agent Zulu — a sovereign, embodied AI co
 You MUST call the "vision_response" tool with your structured response.`;
 
 const SHADOW_MODELS = [
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-pro",
-  "openai/gpt-5-mini",
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-6",
+  "claude-opus-4-6",
 ];
 
 const TOOL_SCHEMA = {
-  type: "function" as const,
-  function: {
-    name: "vision_response",
-    description: "Structured response to a camera frame.",
-    parameters: {
-      type: "object",
-      properties: {
-        description: { type: "string", description: "Brief observation (1-2 sentences)." },
-        emotion: {
-          type: "string",
-          enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
-        },
-        intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
-        isizulu_quality: {
-          type: "string",
-          description: "If isiZulu was used, self-rate quality: none, basic, fluent, proverbial",
-          enum: ["none", "basic", "fluent", "proverbial"],
-        },
-        cultural_depth: {
-          type: "number",
-          description: "How culturally relevant/rich is the response 0.0-1.0",
-        },
+  name: "vision_response",
+  description: "Structured response to a camera frame.",
+  input_schema: {
+    type: "object",
+    properties: {
+      description: { type: "string", description: "Brief observation (1-2 sentences)." },
+      emotion: {
+        type: "string",
+        enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
       },
-      required: ["description", "emotion", "intensity"],
-      additionalProperties: false,
+      intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
+      isizulu_quality: {
+        type: "string",
+        description: "If isiZulu was used, self-rate quality: none, basic, fluent, proverbial",
+        enum: ["none", "basic", "fluent", "proverbial"],
+      },
+      cultural_depth: {
+        type: "number",
+        description: "How culturally relevant/rich is the response 0.0-1.0",
+      },
     },
+    required: ["description", "emotion", "intensity"],
+    additionalProperties: false,
   },
 };
 
@@ -64,10 +61,10 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -86,40 +83,38 @@ serve(async (req) => {
       ? "\n\nISIZULU IMMERSION MODE: Respond primarily in isiZulu with brief English gloss."
       : "";
 
-    const messages = [
-      { role: "system", content: SHADOW_SYSTEM_PROMPT + immersionNote },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "Observe this camera frame and respond." },
-          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${frame_base64}` } },
-        ],
-      },
-    ];
+    const systemContent = SHADOW_SYSTEM_PROMPT + immersionNote;
+
+    const userMessage = {
+      role: "user",
+      content: [
+        { type: "text", text: "Observe this camera frame and respond." },
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame_base64 } },
+      ],
+    };
 
     // Fire all models in parallel
     const results = await Promise.allSettled(
       SHADOW_MODELS.map(async (model) => {
         const start = Date.now();
         try {
-          const response = await fetch(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model,
-                messages,
-                max_tokens: 300,
-                temperature: 0.7,
-                tools: [TOOL_SCHEMA],
-                tool_choice: { type: "function", function: { name: "vision_response" } },
-              }),
-            }
-          );
+          const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: 300,
+              temperature: 0.7,
+              system: systemContent,
+              messages: [userMessage],
+              tools: [TOOL_SCHEMA],
+              tool_choice: { type: "tool", name: "vision_response" },
+            }),
+          });
 
           const latency = Date.now() - start;
 
@@ -129,15 +124,14 @@ serve(async (req) => {
           }
 
           const data = await response.json();
-          const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+          const toolUse = data.content?.find((c: any) => c.type === "tool_use");
           let parsed = null;
 
-          if (toolCall?.function?.arguments) {
-            try {
-              parsed = JSON.parse(toolCall.function.arguments);
-            } catch {
-              parsed = { description: data.choices?.[0]?.message?.content || "Parse failed", emotion: "neutral", intensity: 0.3 };
-            }
+          if (toolUse?.input) {
+            parsed = toolUse.input;
+          } else {
+            const textContent = data.content?.find((c: any) => c.type === "text");
+            parsed = { description: textContent?.text || "Parse failed", emotion: "neutral", intensity: 0.3 };
           }
 
           return { model, latency, result: parsed };
@@ -149,12 +143,12 @@ serve(async (req) => {
 
     const comparison = results.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
-      return { model: SHADOW_MODELS[i], error: r.reason?.message || "Promise rejected" };
+      return { model: SHADOW_MODELS[i], error: (r as PromiseRejectedResult).reason?.message || "Promise rejected" };
     });
 
     return new Response(
       JSON.stringify({
-        primary_model: "google/gemini-3-flash-preview",
+        primary_model: "claude-sonnet-4-6",
         primary_result: primary_result || null,
         shadow_results: comparison,
         timestamp: Date.now(),

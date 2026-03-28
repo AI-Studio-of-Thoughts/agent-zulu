@@ -1,7 +1,7 @@
 /**
  * Sovereign Heritage Vision — Independent isiZulu-first reasoning endpoint.
  *
- * Uses a separate model (Gemini 2.5 Pro for deep reasoning) with a deeply
+ * Uses Claude Opus for deep cultural reasoning with a deeply
  * cultural system prompt. This is the first sovereign inference path —
  * designed to be swapped to a self-hosted open model (Qwen2-VL, LLaVA)
  * when infrastructure is ready.
@@ -32,7 +32,7 @@ VISION & PERCEPTION:
 When you see the camera frame, observe with African eyes:
 - Identify ubuhlalu (beadwork) and decode color symbolism:
   • Umhlophe (white) = uthando olumsulwa (pure love), ubumsulwa
-  • Omnyama (black) = umshado (marriage), ukuzalwa kabusha (regeneration)  
+  • Omnyama (black) = umshado (marriage), ukuzalwa kabusha (regeneration)
   • Oluhlaza okwesibhakabhaka (blue) = ukwethembeka (faithfulness)
   • Ophuzi (yellow) = umnotho (wealth), ingcebo
   • Oluhlaza okotshani (green) = ukwaneliseka (contentment)
@@ -63,7 +63,7 @@ When seeing children playing: "Izingane zidlala — ikusasa lesizwe. 'Umthente u
 GESTURE DETECTION & AR RESPONSE:
 When you see hands/gestures in the frame, identify them:
 - hand_offer: User extending hand or offering an object → respond with acceptance: "Ngiyabonga ngokungikhipha [object]" + cultural story
-- point: User pointing at something → acknowledge direction: "Ngiyabona lapho ukhomba khona..."  
+- point: User pointing at something → acknowledge direction: "Ngiyabona lapho ukhomba khona..."
 - wave: User waving → warm greeting: "Sawubona! Unjani?"
 - hold_up: User holding up an item for inspection → zoom interest: "Ake ngibheke kahle — ngiyakubona..."
 - open_palm: Open palm gesture → ubuntu response: "Isandla esivulekile — ubuntu"
@@ -135,15 +135,125 @@ Use proper tonal marks. Respond with Yorùbá philosophical depth and àṣà (c
   }
 }
 
+/** Convert OpenAI-format messages to Anthropic format */
+function convertMessages(msgs: any[]): any[] {
+  const result: any[] = [];
+  for (const msg of msgs) {
+    if (msg.role === "system") continue;
+    const content = convertContent(msg.content);
+    result.push({ role: msg.role, content });
+  }
+  while (result.length > 0 && result[0].role !== "user") {
+    result.shift();
+  }
+  return result;
+}
+
+function convertContent(content: any): any {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((c) => {
+      if (c.type === "image_url") {
+        const url: string = c.image_url?.url || "";
+        const base64 = url.replace(/^data:image\/\w+;base64,/, "");
+        return { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } };
+      }
+      return c;
+    });
+  }
+  return content;
+}
+
+const toolEnumNames = [
+  "point_at_screen", "freeze_frame", "remember_object",
+  "search_knowledge_base", "zoom_camera", "alert_user",
+  "set_goal", "complete_milestone", "search_goals",
+  "delegate_to_specialist", "describe_in_isizulu",
+  "get_weather", "describe_what_i_see",
+];
+
+const VISION_TOOL = {
+  name: "vision_response",
+  description: "Structured sovereign heritage response to a camera frame.",
+  input_schema: {
+    type: "object",
+    properties: {
+      description: { type: "string", description: "Rich isiZulu-first observation with cultural context." },
+      emotion: {
+        type: "string",
+        enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
+      },
+      intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
+      proactive_suggestion: {
+        type: "object",
+        description: "Cultural insight or heritage knowledge to share proactively.",
+        properties: {
+          text: { type: "string" },
+          confidence: { type: "number" },
+        },
+        required: ["text", "confidence"],
+      },
+      tool_calls: {
+        type: "array",
+        description: "Optional action tool calls.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", enum: toolEnumNames },
+            parameters: {
+              type: "object",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                description: { type: "string" },
+                name: { type: "string" },
+                query: { type: "string" },
+                factor: { type: "number" },
+                duration_ms: { type: "number" },
+                message: { type: "string" },
+                urgency: { type: "string", enum: ["low", "medium", "high"] },
+                milestones: { type: "array", items: { type: "string" } },
+                goal_name: { type: "string" },
+                milestone: { type: "string" },
+                specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
+                task: { type: "string" },
+                subject: { type: "string" },
+              },
+            },
+          },
+          required: ["name"],
+        },
+      },
+      gesture_detected: {
+        type: "object",
+        description: "If a hand gesture is visible (offering object, pointing, waving, holding item up, open palm), describe it.",
+        properties: {
+          type: { type: "string", enum: ["hand_offer", "point", "wave", "hold_up", "open_palm"] },
+          x: { type: "number", description: "Normalized x coordinate (0-1) of gesture center." },
+          y: { type: "number", description: "Normalized y coordinate (0-1) of gesture center." },
+          label_zu: { type: "string", description: "isiZulu response to this gesture." },
+          label_en: { type: "string", description: "Short English gloss." },
+          confidence: { type: "number", description: "Confidence 0-1 that this gesture is present." },
+        },
+        required: ["type", "x", "y", "label_zu", "confidence"],
+      },
+      notes_zu: { type: "string", description: "Additional isiZulu cultural notes, izaga, or context." },
+      sovereignty_signal: { type: "string", description: "Brief note on what a sovereign model adds here vs generic AI." },
+    },
+    required: ["description", "emotion", "intensity"],
+    additionalProperties: false,
+  },
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -158,16 +268,13 @@ serve(async (req) => {
       );
     }
 
-    // Pan-African language adaptation
     const langAdaptation = getPanAfricanPrompt(target_language || "isizulu");
     const systemContent = SOVEREIGN_SYSTEM_PROMPT + langAdaptation + (memory_context || "") + (goals_context || "");
 
-    const messages: any[] = [
-      { role: "system", content: systemContent },
-    ];
+    const messages: any[] = [];
 
     if (context && Array.isArray(context)) {
-      messages.push(...context.slice(-6));
+      messages.push(...convertMessages(context.slice(-6)));
     }
 
     const userPrompts: Record<string, string> = {
@@ -183,113 +290,27 @@ serve(async (req) => {
       role: "user",
       content: [
         { type: "text", text: userText },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${frame_base64}` } },
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame_base64 } },
       ],
     });
 
-    const toolEnumNames = [
-      "point_at_screen", "freeze_frame", "remember_object",
-      "search_knowledge_base", "zoom_camera", "alert_user",
-      "set_goal", "complete_milestone", "search_goals",
-      "delegate_to_specialist", "describe_in_isizulu",
-      "get_weather", "describe_what_i_see",
-    ];
-
-    // Use Gemini 2.5 Pro for deeper cultural reasoning
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          messages,
-          max_tokens: 800,
-          temperature: 0.8,
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "vision_response",
-                description: "Structured sovereign heritage response to a camera frame.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    description: { type: "string", description: "Rich isiZulu-first observation with cultural context." },
-                    emotion: {
-                      type: "string",
-                      enum: ["neutral", "thinking", "speaking", "listening", "alert", "empathetic"],
-                    },
-                    intensity: { type: "number", description: "Emotion intensity 0.0-1.0." },
-                    proactive_suggestion: {
-                      type: "object",
-                      description: "Cultural insight or heritage knowledge to share proactively.",
-                      properties: {
-                        text: { type: "string" },
-                        confidence: { type: "number" },
-                      },
-                      required: ["text", "confidence"],
-                    },
-                    tool_calls: {
-                      type: "array",
-                      description: "Optional action tool calls.",
-                      items: {
-                        type: "object",
-                        properties: {
-                          name: { type: "string", enum: toolEnumNames },
-                          parameters: {
-                            type: "object",
-                            properties: {
-                              x: { type: "number" },
-                              y: { type: "number" },
-                              description: { type: "string" },
-                              name: { type: "string" },
-                              query: { type: "string" },
-                              factor: { type: "number" },
-                              duration_ms: { type: "number" },
-                              message: { type: "string" },
-                              urgency: { type: "string", enum: ["low", "medium", "high"] },
-                              milestones: { type: "array", items: { type: "string" } },
-                              goal_name: { type: "string" },
-                              milestone: { type: "string" },
-                              specialist: { type: "string", enum: ["cultural", "safety", "memory", "general", "heritage"] },
-                              task: { type: "string" },
-                              subject: { type: "string" },
-                            },
-                          },
-                        },
-                        required: ["name"],
-                      },
-                    },
-                    gesture_detected: {
-                      type: "object",
-                      description: "If a hand gesture is visible (offering object, pointing, waving, holding item up, open palm), describe it.",
-                      properties: {
-                        type: { type: "string", enum: ["hand_offer", "point", "wave", "hold_up", "open_palm"] },
-                        x: { type: "number", description: "Normalized x coordinate (0-1) of gesture center." },
-                        y: { type: "number", description: "Normalized y coordinate (0-1) of gesture center." },
-                        label_zu: { type: "string", description: "isiZulu response to this gesture." },
-                        label_en: { type: "string", description: "Short English gloss." },
-                        confidence: { type: "number", description: "Confidence 0-1 that this gesture is present." },
-                      },
-                      required: ["type", "x", "y", "label_zu", "confidence"],
-                    },
-                    notes_zu: { type: "string", description: "Additional isiZulu cultural notes, izaga, or context." },
-                    sovereignty_signal: { type: "string", description: "Brief note on what a sovereign model adds here vs generic AI." },
-                  },
-                  required: ["description", "emotion", "intensity"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "vision_response" } },
-        }),
-      }
-    );
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-6",
+        max_tokens: 800,
+        temperature: 0.8,
+        system: systemContent,
+        messages,
+        tools: [VISION_TOOL],
+        tool_choice: { type: "tool", name: "vision_response" },
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -298,42 +319,28 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const errText = await response.text();
-      console.error("Sovereign heritage error:", response.status, errText);
-      throw new Error(`AI gateway error [${response.status}]`);
+      console.error("Anthropic API error:", response.status, errText);
+      throw new Error(`Anthropic API error [${response.status}]`);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const toolUse = data.content?.find((c: any) => c.type === "tool_use");
     let result;
 
-    if (toolCall?.function?.arguments) {
-      try {
-        result = JSON.parse(toolCall.function.arguments);
-      } catch {
-        result = {
-          description: data.choices?.[0]?.message?.content || "Ngiyabona isimo.",
-          emotion: "neutral",
-          intensity: 0.3,
-        };
-      }
+    if (toolUse?.input) {
+      result = toolUse.input;
     } else {
+      const textContent = data.content?.find((c: any) => c.type === "text");
       result = {
-        description: data.choices?.[0]?.message?.content || "Ngiyabona isimo.",
+        description: textContent?.text || "Ngiyabona isimo.",
         emotion: "neutral",
         intensity: 0.3,
       };
     }
 
-    // Tag as sovereign for logging
     result.source = "sovereign-heritage";
-    result.model = "gemini-2.5-pro";
+    result.model = "claude-opus-4-6";
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
