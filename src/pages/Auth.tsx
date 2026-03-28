@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useSignIn, useSignUp, useUser } from "@clerk/react";
+import { useUser } from "@clerk/react";
+import { useSignIn, useSignUp } from "@clerk/react/legacy";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -9,6 +10,8 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [pendingVerification, setPendingVerification] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { isSignedIn } = useUser();
@@ -25,7 +28,17 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isLogin) {
+      if (pendingVerification) {
+        // Verify the email code
+        const result = await signUp!.attemptEmailAddressVerification({ code: verificationCode });
+        if (result.status === "complete") {
+          await setSignUpActive!({ session: result.createdSessionId });
+          toast.success("Account verified! Welcome to Agent Zulu.");
+          navigate("/");
+        } else {
+          toast.error("Verification incomplete. Please try again.");
+        }
+      } else if (isLogin) {
         const result = await signIn!.create({ identifier: email, password });
         if (result.status === "complete") {
           await setSignInActive!({ session: result.createdSessionId });
@@ -46,7 +59,8 @@ const Auth = () => {
           navigate("/");
         } else {
           await signUp!.prepareEmailAddressVerification({ strategy: "email_code" });
-          toast.success("Check your email to verify your account");
+          setPendingVerification(true);
+          toast.success("Check your email for a verification code.");
         }
       }
     } catch (err: any) {
@@ -83,31 +97,65 @@ const Auth = () => {
         </div>
         <form onSubmit={handleSubmit} className="glass-surface rounded-lg p-6 space-y-4">
           <h2 className="font-display text-sm tracking-[0.15em] text-foreground/80 text-center">
-            {isLogin ? "SIGN IN" : "CREATE ACCOUNT"}
+            {pendingVerification ? "VERIFY EMAIL" : isLogin ? "SIGN IN" : "CREATE ACCOUNT"}
           </h2>
-          {!isLogin && (
+
+          {pendingVerification ? (
             <div>
-              <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Display Name</label>
-              <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50" placeholder="Your name" />
+              <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Verification Code</label>
+              <input
+                type="text"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                required
+                autoFocus
+                className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 tracking-[0.3em] text-center"
+                placeholder="000000"
+                maxLength={6}
+              />
+              <p className="font-mono text-[10px] text-muted-foreground mt-2 text-center">
+                Sent to {email}
+              </p>
             </div>
+          ) : (
+            <>
+              {!isLogin && (
+                <div>
+                  <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Display Name</label>
+                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50" placeholder="Your name" />
+                </div>
+              )}
+              <div>
+                <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50" placeholder="you@example.com" />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Password</label>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50" placeholder="••••••••" />
+              </div>
+            </>
           )}
-          <div>
-            <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50" placeholder="you@example.com" />
-          </div>
-          <div>
-            <label className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase block mb-1.5">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-body placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50" placeholder="••••••••" />
-          </div>
+
           <button type="submit" disabled={loading || !signInLoaded || !signUpLoaded} className="w-full bg-primary/10 border border-primary/40 text-primary rounded-md py-2.5 font-display text-xs tracking-[0.15em] uppercase hover:bg-primary/20 transition-colors disabled:opacity-50">
-            {loading ? "Processing…" : isLogin ? "Sign In" : "Create Account"}
+            {loading ? "Processing…" : pendingVerification ? "Verify" : isLogin ? "Sign In" : "Create Account"}
           </button>
-          <p className="text-center text-xs text-muted-foreground font-body">
-            {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-primary hover:underline">
-              {isLogin ? "Sign up" : "Sign in"}
-            </button>
-          </p>
+
+          {!pendingVerification && (
+            <p className="text-center text-xs text-muted-foreground font-body">
+              {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+              <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-primary hover:underline">
+                {isLogin ? "Sign up" : "Sign in"}
+              </button>
+            </p>
+          )}
+
+          {pendingVerification && (
+            <p className="text-center text-xs text-muted-foreground font-body">
+              <button type="button" onClick={() => setPendingVerification(false)} className="text-primary hover:underline">
+                Back
+              </button>
+            </p>
+          )}
         </form>
       </motion.div>
     </div>
