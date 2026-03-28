@@ -40,7 +40,7 @@ export class SovereignVisionAdapter implements AgentBackendAdapter {
   private toolHandlers: Record<string, ToolHandler> = {};
   private context: Array<{ role: string; content: string }> = [];
 
-  private minFrameInterval = 6000;
+  private minFrameInterval = 3000;
   private backoffUntil = 0;
   private lastFrameTime = 0;
   private processing = false;
