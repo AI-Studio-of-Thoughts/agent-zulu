@@ -40,12 +40,24 @@ const Auth = () => {
         }
       } else if (isLogin) {
         const result = await signIn!.create({ identifier: email, password });
+        console.log("[SignIn] status:", result.status, result);
         if (result.status === "complete") {
           await setSignInActive!({ session: result.createdSessionId });
           toast.success("Welcome back!");
           navigate("/");
+        } else if (result.status === "needs_first_factor") {
+          // Attempt password factor explicitly
+          const attempt = await signIn!.attemptFirstFactor({ strategy: "password", password });
+          console.log("[SignIn] attempt status:", attempt.status);
+          if (attempt.status === "complete") {
+            await setSignInActive!({ session: attempt.createdSessionId });
+            toast.success("Welcome back!");
+            navigate("/");
+          } else {
+            toast.error(`Sign-in incomplete: ${attempt.status}`);
+          }
         } else {
-          toast.error("Sign-in requires additional steps. Please try again.");
+          toast.error(`Sign-in status: ${result.status}. Please try again.`);
         }
       } else {
         const result = await signUp!.create({
