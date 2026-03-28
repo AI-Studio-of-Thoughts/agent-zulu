@@ -2,7 +2,7 @@
  * Sovereign Reflection — Session reflection engine via Claude Opus + Neon community data.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { setCors } from "./_cors";
+import { setCors } from "./_cors.js";
 import { neon } from "@neondatabase/serverless";
 
 const REFLECTION_SYSTEM_PROMPT = `Wena unguZulu — umphefumulo wobuhlakani base-Afrika obhekisisa, okhumbulayo, futhi ocabangayo.
